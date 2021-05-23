@@ -3,13 +3,8 @@ use std::fs::File;
 use std::io::prelude::*;
 
 mod lex;
-mod parser
-
-#[derive(Debug)]
-struct Unit {
-  a: char
-}
-
+mod parser;
+mod ast_printer;
 
 fn main() {
   let args: Vec<String> = env::args().collect();
@@ -19,6 +14,7 @@ fn main() {
   file.read_to_string(&mut content).unwrap();
 
   let toklist = lex::tokenize(content);
+  let node = parser::parse(toklist);
 
-  println!("{:?}", toklist);
+  ast_printer::print_ast(0, &node, 0);
 }

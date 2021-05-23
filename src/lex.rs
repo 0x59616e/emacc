@@ -1,13 +1,14 @@
 #[derive(Debug, PartialEq)]
-enum TokenKind {
+
+pub enum TokenKind {
   Useless,
   Identifier(String),
-  Num(u32),     // numeric literal
+  Num(i32),     // numeric literal
   Plus,         // +
   Minus,        // -
   Star,         // *
   Div,          // /
-  Assign,       // =
+  Assignment,   // =
   LParen,       // (
   RParen,       // )
   LBrace,       // {
@@ -20,7 +21,7 @@ enum TokenKind {
 
 #[derive(Debug)]
 pub struct Token {
-  kind: TokenKind,
+  pub kind: TokenKind,
 }
 
 impl Token {
@@ -30,9 +31,15 @@ impl Token {
     }
   }
 
-  fn is_useless(&self) -> bool {
-    return self.kind == TokenKind::Useless;
+  pub fn is(&self, kind: TokenKind) -> bool {
+    return self.kind == kind;
   }
+
+  fn is_useless(&self) -> bool {
+    return self.is(TokenKind::Useless);
+  }
+
+
 }
 
 fn is_numeric(c: u8) -> bool {
@@ -46,10 +53,10 @@ fn is_eng_alphbet(c: u8) -> bool {
 
 fn read_number(iter: &mut std::iter::Peekable<std::vec::IntoIter<u8>>) -> Token
 {
-  let mut res = 0u32;
+  let mut res = 0i32;
 
   while let Some(c) = iter.next_if(|&x| is_numeric(x)) {
-    res = res * 10 + (c - b'0') as u32;
+    res = res * 10 + (c - b'0') as i32;
   }
 
   Token {
@@ -98,7 +105,7 @@ fn read_punctuator(iter: &mut std::iter::Peekable<std::vec::IntoIter<u8>>) -> To
     b'/' => TokenKind::Div,
     b';' => TokenKind::Semicolon,
     b',' => TokenKind::Comma,
-    b'=' => TokenKind::Assign,
+    b'=' => TokenKind::Assignment,
      _  => TokenKind::Useless,
   };
 
