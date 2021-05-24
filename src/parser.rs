@@ -1,4 +1,5 @@
 use crate::lex::{Token, TokenKind};
+use crate::sema;
 use std::collections::HashMap;
 type TokenIterator = std::iter::Peekable<std::vec::IntoIter<Token>>;
 
@@ -83,7 +84,6 @@ pub enum NodeKind {
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum ObjectKind {
-  Unknown,
   Int,
   Function,
 }
@@ -359,13 +359,19 @@ fn parse_selection_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node 
   if let Some(_) = consume(tokiter, TokenKind::KwElse) {
     else_stmt = Some(parse_stmt(tokiter, scope));
   }
-  Node {
+  let node = Node {
     kind: NodeKind::IfStmt {
       cond_expr,
       then_stmt,
       else_stmt,
     }
+  };
+
+  if !sema::check_on_if_stmt(&node) {
+    panic!("if statement");
   }
+
+  node
 }
 // statement ->  compound-statement
 //               expression-statement
