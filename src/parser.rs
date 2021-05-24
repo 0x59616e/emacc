@@ -37,6 +37,9 @@ pub struct Initializer {
 }
 
 pub enum NodeKind {
+  Program {
+    func_or_decl_list: Vec<Node>,
+  },
   FunctionDefinition {
     prototype: Object,
     body: Box<Node>,
@@ -55,6 +58,10 @@ pub enum NodeKind {
     op: BinOpType,
     lhs: Box<Node>,
     rhs: Box<Node>
+  },
+  CallExpr {
+    func: Object,
+    arg_list: Vec<Node>,
   },
   UnaryExpr(Box<Node>),
   Variable(Object),
@@ -84,6 +91,8 @@ pub struct Node {
 struct Scope {
   // The function in which this scope currently reside
   function: Option<Object>,
+  // global variable or functio definition
+  global_decl_set: HashMap<String, Object>,
   // local variable
   local_decl_set: Vec<HashMap<String, Object>>
 }
@@ -98,6 +107,7 @@ impl Scope {
   fn new() -> Scope {
     Scope {
       function: None,
+      global_decl_set: HashMap::new(),
       local_decl_set: Vec::new(),
     }
   }
@@ -111,8 +121,30 @@ impl Scope {
     self.enter_new_scope();
   }
 
+  fn leave_scope(&mut self) {
+    self.local_decl_set.pop();
+    if self.local_decl_set.is_empty() {
+      self.function = None;
+    }
+  }
+
   fn insert_local_var(&mut self, object: Object) {
     self.local_decl_set.last_mut().unwrap().insert(object.name.clone(), object);
+  }
+
+  fn insert_global_var(&mut self, object: Object) {
+    self.global_decl_set.insert(object.name.clone(), object);
+  }
+
+  fn find_var(&self, name: &String) -> Option<&Object> {
+    for table in self.local_decl_set.iter().rev() {
+      let res = table.get(name);
+      if let Some(_) = res {
+        return res;
+      }
+    }
+
+    self.global_decl_set.get(name)
   }
 }
 
@@ -184,15 +216,32 @@ fn get_next_op(tokiter: &mut TokenIterator) -> BinOpType {
 //                      string-literal
 //                      ( expression )
 
-fn parse_cast_expr(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
+fn parse_cast_expr(tokiter: &mut TokenIterator, scope: &Scope) -> Node {
   let tok = tokiter.next().unwrap();
 
   let node = match tok.kind {
     TokenKind::Identifier(name) => {
-      let object = scope.local_decl_set.last().unwrap()
-                          .get(&name).expect("undeclared variable");
-      Node {
-        kind: NodeKind::Variable(object.clone())
+      let object = scope.find_var(&name).expect("undeclared variable");
+      match object.kind {
+        ObjectKind::Int => Node {kind: NodeKind::Variable(object.clone())},
+        ObjectKind::Function => {
+          consume(tokiter, TokenKind::LParen);
+          let mut arg_list: Vec<Node> = vec![];
+          if let None = consume(tokiter, TokenKind::RParen) {
+            loop {
+              arg_list.push(parse_assign_expr(tokiter, scope));
+              if let None = consume(tokiter, TokenKind::Comma) {
+                consume(tokiter, TokenKind::RParen);
+                break;
+              }
+            }
+          }
+          Node {kind: NodeKind::CallExpr {
+            func: object.clone(),
+            arg_list,
+          }}
+        },
+        _ => panic!("????"),
       }
     },
     TokenKind::Num(num) => Node {kind: NodeKind::Constant(num)},
@@ -207,7 +256,7 @@ fn parse_cast_expr(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
 }
 
 fn parse_rhs_of_binary_op(tokiter: &mut TokenIterator,
-                          scope: &mut Scope,
+                          scope: &Scope,
                           mut lhs: Node,
                           min_prec_level: PrecLevel) -> Node {
   loop {
@@ -235,7 +284,7 @@ fn parse_rhs_of_binary_op(tokiter: &mut TokenIterator,
   }
 }
 
-fn parse_assign_expr(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
+fn parse_assign_expr(tokiter: &mut TokenIterator, scope: &Scope) -> Node {
   let lhs = parse_cast_expr(tokiter, scope);
   parse_rhs_of_binary_op(tokiter, scope, lhs, Level::Assignment as PrecLevel)
 }
@@ -243,12 +292,12 @@ fn parse_assign_expr(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
 //------------------------------------------
 // expression -> assignment-expression
 //               expression , assignment-expresion
-fn parse_expr(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
+fn parse_expr(tokiter: &mut TokenIterator, scope: &Scope) -> Node {
   let lhs = parse_assign_expr(tokiter, scope);
   parse_rhs_of_binary_op(tokiter, scope, lhs, Level::Comma as PrecLevel)
 }
 
-fn parse_expr_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
+fn parse_expr_stmt(tokiter: &mut TokenIterator, scope: &Scope) -> Node {
   let node = parse_expr(tokiter, scope);
   consume(tokiter, TokenKind::Semicolon);
   return node;
@@ -270,6 +319,7 @@ fn parse_jump_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
 }
 // statement ->  compound-statement
 //               expression-statement
+//               selection-statement
 //               jump-statement
 //------------------------------------
 fn parse_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Vec<Node> {
@@ -293,6 +343,7 @@ fn parse_compound_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
   if let None = consume(tokiter, TokenKind::LBrace) {
     panic!("There should've been a left curly brace");
   }
+  scope.enter_new_scope();
 
   let mut node_list: Vec<Node> = Vec::new();
   loop {
@@ -311,6 +362,7 @@ fn parse_compound_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
   if let None = consume(tokiter, TokenKind::RBrace) {
     panic!("There should've been a right curly brace");
   }
+  scope.leave_scope();
 
   Node {
     kind: NodeKind::CompoundStmt{body: node_list,}
@@ -442,15 +494,29 @@ pub fn parse(toklist: Vec<Token>) -> Node {
 
   let mut tokiter = toklist.into_iter().peekable();
   let mut scope = Scope::new();
+  let mut func_or_decl_list: Vec<Node> = vec![];
 
-  let function_specifier = parse_declaration_specifiers(&mut tokiter);
-  let function = parse_declarator(&mut tokiter, function_specifier);
-  scope.enter_new_function_scope(function.clone());
-  let node = Node {
-    kind: NodeKind::FunctionDefinition {
-      prototype: function,
-      body: Box::new(parse_compound_stmt(&mut tokiter, &mut scope)),
+  while let Some(_) = tokiter.peek() {
+    let function_specifier = parse_declaration_specifiers(&mut tokiter);
+    let function = parse_declarator(&mut tokiter, function_specifier);
+    scope.insert_global_var(function.clone());
+    scope.enter_new_function_scope(function.clone());
+    for parm in function.para_list.as_ref().unwrap().iter() {
+      scope.insert_local_var(parm.clone());
     }
-  };
-  node
+
+    let node = Node {
+      kind: NodeKind::FunctionDefinition {
+        prototype: function,
+        body: Box::new(parse_compound_stmt(&mut tokiter, &mut scope)),
+      }
+    };
+    func_or_decl_list.push(node);
+    scope.leave_scope();
+  }
+  Node {
+    kind: NodeKind::Program {
+      func_or_decl_list,
+    }
+  }
 }

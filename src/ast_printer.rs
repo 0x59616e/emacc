@@ -16,12 +16,16 @@ impl fmt::Display for Object {
     match self.kind {
       ObjectKind::Int => write!(f, "'{}'", self.kind),
       ObjectKind::Function => {
-        write!(f, "'{}", self.return_type.unwrap());
-        write!(f, " (");
-        for (i, object) in self.para_list.as_ref().unwrap().iter().enumerate() {
-          write!(f, "{}, ", object.kind);
+        write!(f, "{}", self.return_type.unwrap())?;
+        write!(f, " (")?;
+        let mut iter = self.para_list.as_ref().unwrap().iter().peekable();
+        while let Some(object) = iter.next() {
+          write!(f, "{}", object.kind)?;
+          if let Some(_) = iter.peek() {
+            write!(f, ", ")?;
+          }
         }
-        write!(f, ")'")
+        write!(f, ")")
       }
       _ => write!(f, "")
     }
@@ -54,6 +58,19 @@ pub fn print_ast(prefix: i32, node: &Node, level: i32) {
   let s = String::from_utf8(s).unwrap();
 
   match node.get_kind() {
+    NodeKind::Program {func_or_decl_list} => {
+      println!("-Program");
+      for (i, node) in func_or_decl_list.iter().enumerate() {
+        print!("{}", s);
+        if i != func_or_decl_list.len() - 1 {
+          print!(" |");
+          print_ast(prefix | (1 << level), node, level + 1);
+        } else {
+          print!(" `");
+          print_ast(prefix, node, level + 1);
+        }
+      }
+    }
     NodeKind::FunctionDefinition{prototype, body} => {
       println!("-FunctionDecl: {}", prototype);
       print!("{} `", s);
@@ -92,6 +109,19 @@ pub fn print_ast(prefix: i32, node: &Node, level: i32) {
       print_ast(prefix | (1 << level), &*lhs, level + 1);
       print!("{} `", s);
       print_ast(prefix, &*rhs, level + 1);
+    }
+    NodeKind::CallExpr{func, arg_list} => {
+      println!("-CallExpr: '{}'", func);
+      for (i, node) in arg_list.iter().enumerate() {
+        print!("{}", s);
+        if i != arg_list.len() - 1 {
+          print!(" |");
+          print_ast(prefix | (1 << level), node, level + 1);
+        } else {
+          print!(" `");
+          print_ast(prefix, node, level + 1);
+        }
+      }
     }
     NodeKind::UnaryExpr(node) => {
       println!("-UnaryExpr");
