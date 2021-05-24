@@ -5,6 +5,8 @@ use std::io::prelude::*;
 mod lex;
 mod parser;
 mod ast_printer;
+mod codegen;
+mod sema;
 
 fn main() {
   let args: Vec<String> = env::args().collect();
