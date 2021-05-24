@@ -41,6 +41,14 @@ impl fmt::Display for BinOpType {
       BinOpType::Minus => write!(f, "-"),
       BinOpType::Mul => write!(f, "*"),
       BinOpType::Div => write!(f, "/"),
+      BinOpType::Equal => write!(f, "=="),
+      BinOpType::NotEqual => write!(f, "!="),
+      BinOpType::Less => write!(f, "<"),
+      BinOpType::LessEqual => write!(f, "<="),
+      BinOpType::Greater => write!(f, ">"),
+      BinOpType::GreaterEqual => write!(f, ">="),
+      BinOpType::LogicalOr => write!(f, "||"),
+      BinOpType::LogicalAnd => write!(f, "&&"),
     }
   }
 }
@@ -93,6 +101,38 @@ pub fn print_ast(prefix: i32, node: &Node, level: i32) {
         } else {
           print!(" `");
           print_ast(prefix, node, level + 1);
+        }
+      }
+    }
+    NodeKind::IfStmt{cond_expr, then_stmt, else_stmt} => {
+      println!("-IfStmt");
+      print!("{} |", s);
+      print_ast(prefix | (1 << level), &*cond_expr, level + 1);
+      for (i, node) in then_stmt.iter().enumerate() {
+        print!("{}", s);
+        if i != then_stmt.len() - 1 {
+          print!(" |");
+          print_ast(prefix | (1 << level), node, level + 1);
+        } else {
+          if let None = else_stmt {
+            print!(" `");
+            print_ast(prefix, node, level + 1);
+          } else {
+            print!(" |");
+            print_ast(prefix | (1 << level), node, level + 1);
+          }
+        }
+      }
+      if let Some(else_stmt) = else_stmt {
+        for (i, node) in else_stmt.iter().enumerate() {
+          print!("{}", s);
+          if i != else_stmt.len() - 1 {
+            print!(" |");
+            print_ast(prefix | (1 << level), node, level + 1);
+          } else {
+            print!(" `");
+            print_ast(prefix, node, level + 1);
+          }
         }
       }
     }

@@ -6,6 +6,14 @@ type TokenIterator = std::iter::Peekable<std::vec::IntoIter<Token>>;
 pub enum BinOpType {
   Comma,         // ,
   Assignment,    // =
+  LogicalOr,     // ||
+  LogicalAnd,    // &&
+  Equal,         // ==
+  NotEqual,      // !=
+  GreaterEqual,  // >=
+  Greater,       // >
+  LessEqual,     // <=
+  Less,          // <
   Plus,          // +
   Minus,         // -
   Mul,           // *
@@ -17,13 +25,13 @@ enum Level {
   Comma           = 1,    // ,
   Assignment      = 2,    // =, *=, /=, %=, +=, -=, <<=, >>=, &=, ^=, |=
   _Conditional     = 3,    // ?
-  _LogicalOr       = 4,    // ||
-  _LogicalAnd      = 5,    // &&
+  LogicalOr       = 4,    // ||
+  LogicalAnd      = 5,    // &&
   _InclusiveOr     = 6,    // |
   _ExclusiveOr     = 7,    // ^
   _And             = 8,    // &
-  _Equality        = 9,    // ==, !=
-  _Relational      = 10,   //  >=, <=, >, <
+  Equality        = 9,    // ==, !=
+  Relational      = 10,   //  >=, <=, >, <
   _Spaceship       = 11,   // <=>
   _Shift           = 12,   // <<, >>
   Additive        = 13,   // -, +
@@ -50,6 +58,11 @@ pub enum NodeKind {
   },
   CompoundStmt {
     body: Vec<Node>
+  },
+  IfStmt {
+    cond_expr: Box<Node>,
+    then_stmt: Vec<Node>,
+    else_stmt: Option<Vec<Node>>,
   },
   ReturnStmt {
     expr: Option<Box<Node>>
@@ -169,6 +182,14 @@ fn get_next_op_prec(tokiter: &mut TokenIterator) -> PrecLevel {
   match tokiter.peek().unwrap().kind {
     TokenKind::Comma => Level::Comma as PrecLevel,
     TokenKind::Assignment => Level::Assignment as PrecLevel,
+    TokenKind::LogicalOr => Level::LogicalOr as PrecLevel,
+    TokenKind::LogicalAnd => Level::LogicalAnd as PrecLevel,
+    TokenKind::EqualEqual |
+    TokenKind::NotEqual   => Level::Equality as PrecLevel,
+    TokenKind::Less      |
+    TokenKind::LessEqual |
+    TokenKind::Greater   |
+    TokenKind::GreaterEqual => Level::Relational as PrecLevel,
     TokenKind::Plus |
     TokenKind::Minus => Level::Additive as PrecLevel,
     TokenKind::Star |
@@ -185,6 +206,14 @@ fn get_next_op(tokiter: &mut TokenIterator) -> BinOpType {
     TokenKind::Plus => BinOpType::Plus,
     TokenKind::Star => BinOpType::Mul,
     TokenKind::Div  => BinOpType::Div,
+    TokenKind::EqualEqual => BinOpType::Equal,
+    TokenKind::NotEqual => BinOpType::NotEqual,
+    TokenKind::Greater => BinOpType::GreaterEqual,
+    TokenKind::GreaterEqual => BinOpType::GreaterEqual,
+    TokenKind::Less => BinOpType::Less,
+    TokenKind::LessEqual => BinOpType::LessEqual,
+    TokenKind::LogicalOr => BinOpType::LogicalOr,
+    TokenKind::LogicalAnd => BinOpType::LogicalAnd,
     _ => panic!("Unregonizable operator: '{:?}'", tok),
   }
 }
@@ -250,7 +279,7 @@ fn parse_cast_expr(tokiter: &mut TokenIterator, scope: &Scope) -> Node {
       consume(tokiter, TokenKind::RParen);
       node
     }
-    _ => panic!("shi ran"),
+    _ => panic!("?????"),
   };
   node
 }
@@ -317,6 +346,26 @@ fn parse_jump_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
   }
   node
 }
+// selection-statement -> if ( expression ) statement
+//                        if ( expression ) statement else statement
+fn parse_selection_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
+  consume(tokiter, TokenKind::KwIf);
+  consume(tokiter, TokenKind::LParen);
+  let cond_expr = Box::new(parse_expr(tokiter, scope));
+  consume(tokiter, TokenKind::RParen);
+  let then_stmt = parse_stmt(tokiter, scope);
+  let mut else_stmt = None;
+  if let Some(_) = consume(tokiter, TokenKind::KwElse) {
+    else_stmt = Some(parse_stmt(tokiter, scope));
+  }
+  Node {
+    kind: NodeKind::IfStmt {
+      cond_expr,
+      then_stmt,
+      else_stmt,
+    }
+  }
+}
 // statement ->  compound-statement
 //               expression-statement
 //               selection-statement
@@ -327,6 +376,7 @@ fn parse_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Vec<Node> {
   let tok = tokiter.peek().unwrap();
   match tok.kind {
     TokenKind::LBrace => stmt_list.push(parse_compound_stmt(tokiter, scope)),
+    TokenKind::KwIf => stmt_list.push(parse_selection_stmt(tokiter, scope)),
     TokenKind::KwReturn => stmt_list.push(parse_jump_stmt(tokiter, scope)),
     _ => stmt_list.push(parse_expr_stmt(tokiter, scope)),
   }
@@ -468,7 +518,6 @@ fn parse_declaration(tokiter: &mut TokenIterator, scope: &mut Scope) -> Vec<Node
       let mut init: Option<Box<Initializer>> = None;
 
       if let Some(_) = consume(tokiter, TokenKind::Assignment) {
-        
         init = Some(Box::new(Initializer {
           init_expr: Box::new(parse_assign_expr(tokiter, scope)),
         }));

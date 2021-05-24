@@ -3,20 +3,33 @@
 pub enum TokenKind {
   Useless,
   Identifier(String),
-  Num(i32),     // numeric literal
-  Plus,         // +
-  Minus,        // -
-  Star,         // *
-  Div,          // /
-  Assignment,   // =
-  LParen,       // (
-  RParen,       // )
-  LBrace,       // {
-  RBrace,       // }
-  Semicolon,    // ;
-  Comma,        // ,
-  KwInt,        // int
-  KwReturn,     // return
+  Num(i32),       // numeric literal
+  Plus,           // +
+  Minus,          // -
+  Star,           // *
+  Div,            // /
+  Assignment,     // =
+  EqualEqual,     // ==
+  NotEqual,       // !=
+  Greater,        // >
+  GreaterEqual,   // >=
+  Less,           // <
+  LessEqual,      // <=
+  LogicalOr,      // ||
+  LogicalAnd,     // &&
+  BitwiseOr,      // |
+  BitwiseAnd,     // &
+  Not,            // !
+  LParen,         // (
+  RParen,         // )
+  LBrace,         // {
+  RBrace,         // }
+  Semicolon,      // ;
+  Comma,          // ,
+  KwInt,          // int
+  KwReturn,       // return
+  KwIf,           // if
+  KwElse,         // else
 }
 
 #[derive(Debug)]
@@ -34,12 +47,6 @@ impl Token {
   pub fn is(&self, kind: TokenKind) -> bool {
     return self.kind == kind;
   }
-
-  fn is_useless(&self) -> bool {
-    return self.is(TokenKind::Useless);
-  }
-
-
 }
 
 fn is_numeric(c: u8) -> bool {
@@ -81,12 +88,29 @@ fn read_identifier_or_keyword(iter: &mut std::iter::Peekable<std::vec::IntoIter<
     kind = TokenKind::KwInt;
   } else if res.eq("return") {
     kind = TokenKind::KwReturn;
+  } else if res.eq("if") {
+    kind = TokenKind::KwIf;
+  } else if res.eq("else") {
+    kind = TokenKind::KwElse;
   } else {
     kind = TokenKind::Identifier(res);
   }
 
   Token {
     kind: kind,
+  }
+}
+
+fn read_punc2(iter: &mut  std::iter::Peekable<std::vec::IntoIter<u8>>,
+              second_char: u8,
+              tok1: TokenKind,
+              tok2: TokenKind) -> TokenKind {
+  let &c = iter.peek().unwrap();
+  if c == second_char {
+    iter.next();
+    tok1
+  } else {
+    tok2
   }
 }
 
@@ -105,8 +129,13 @@ fn read_punctuator(iter: &mut std::iter::Peekable<std::vec::IntoIter<u8>>) -> To
     b'/' => TokenKind::Div,
     b';' => TokenKind::Semicolon,
     b',' => TokenKind::Comma,
-    b'=' => TokenKind::Assignment,
-     _  => TokenKind::Useless,
+    b'=' => read_punc2(iter, b'=', TokenKind::EqualEqual, TokenKind::Assignment),
+    b'>' => read_punc2(iter, b'=', TokenKind::GreaterEqual, TokenKind::Greater),
+    b'<' => read_punc2(iter, b'=', TokenKind::LessEqual, TokenKind::Less),
+    b'!' => read_punc2(iter, b'=', TokenKind::NotEqual, TokenKind::Not),
+    b'|' => read_punc2(iter, b'|', TokenKind::LogicalOr, TokenKind::BitwiseOr),
+    b'&' => read_punc2(iter, b'&', TokenKind::LogicalAnd, TokenKind::BitwiseAnd),
+     _  => panic!("What the fuck is this '{}' ?", c)
   };
 
   Token {
@@ -134,13 +163,15 @@ pub fn tokenize(code: String) ->Vec<Token> {
       b'+' | b'-' |
       b'*' | b'/' |
       b';' | b',' |
-      b'='       => read_punctuator(&mut iter),
+      b'=' | b'>' |
+      b'<' | b'!' |
+      b'|' | b'&' => read_punctuator(&mut iter),
       // useless character
-      b' ' | b'\n' => Token::useless(),
-      _ => panic!("{} <-- unrecognizable character", c),
+      b' ' | b'\n'| b'\t' => Token::useless(),
+      _ => panic!("{} <-- unrecognizable character", c as char),
     };
 
-    if !tok.is_useless() {
+    if !tok.is(TokenKind::Useless) {
       toklist.push(tok);
     } else {
       iter.next();
