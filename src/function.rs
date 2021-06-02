@@ -1,5 +1,4 @@
 use crate::basicblock::*;
-use crate::irbuilder::IRBuilder;
 use crate::symtab::SymTabEntry;
 use crate::value::{DataTy};
 use std::rc::Rc;
