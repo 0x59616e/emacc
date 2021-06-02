@@ -77,8 +77,8 @@ impl Inst for LoadInst {
 pub struct BranchInst {
   condi_br: bool,
   src: Option<Rc<RefCell<Value>>>,
-  true_bb_label: Rc<RefCell<Value>>,
-  false_bb_label: Option<Rc<RefCell<Value>>>,
+  true_bb_label: Value,
+  false_bb_label: Option<Value>,
 }
 
 impl Inst for BranchInst {
@@ -87,9 +87,9 @@ impl Inst for BranchInst {
     if let Some(src) = &self.src {
       print!("{} {}, ", src.borrow().get_data_ty(), src.borrow());
     }
-    print!("label {}", self.true_bb_label.borrow());
+    print!("label {}", self.true_bb_label);
     if let Some(false_bb_label) = &self.false_bb_label {
-      print!(", label {}", false_bb_label.borrow());
+      print!(", label {}", false_bb_label);
     }
     println!("");
   }
@@ -233,14 +233,14 @@ impl Inst for CallInst {
 pub struct PHIInst {
   dest: Rc<RefCell<Value>>,
   // (value, label)
-  pair: Vec<(Rc<RefCell<Value>>, Rc<RefCell<Value>>)>,
+  pair: Vec<(Rc<RefCell<Value>>, Value)>,
 }
 
 impl Inst for PHIInst {
   fn print(&self) {
     print!("{} = phi {}, ", self.dest.borrow(), self.dest.borrow().get_data_ty());
     for (i, (value, label)) in self.pair.iter().enumerate() {
-      print!("[{} {}]", value.borrow(), label.borrow());
+      print!("[{} {}]", value.borrow(), label);
       if i != self.pair.len() - 1 {
         print!(", ");
       }
@@ -257,7 +257,7 @@ pub struct Instruction {
 impl Instruction {
   pub fn gen_phi_inst(
     dest: Rc<RefCell<Value>>,
-    pair: Vec<(Rc<RefCell<Value>>, Rc<RefCell<Value>>)>,
+    pair: Vec<(Rc<RefCell<Value>>, Value)>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
@@ -383,8 +383,8 @@ impl Instruction {
   pub fn gen_br_inst(
     condi_br: bool,
     src: Option<Rc<RefCell<Value>>>,
-    true_bb_label: Rc<RefCell<Value>>,
-    false_bb_label: Option<Rc<RefCell<Value>>>,
+    true_bb_label: Value,
+    false_bb_label: Option<Value>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {

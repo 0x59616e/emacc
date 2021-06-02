@@ -1,4 +1,6 @@
+use crate::instruction::Instruction;
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DataTy {

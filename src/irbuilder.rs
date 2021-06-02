@@ -73,7 +73,7 @@ impl IRBuilder {
   pub fn gen_phi_inst(
     &self,
     dest: &Rc<RefCell<Value>>,
-    pair: Vec<(Rc<RefCell<Value>>, Rc<RefCell<Value>>)>
+    pair: Vec<(Rc<RefCell<Value>>, Value)>
   ) -> Instruction {
     Instruction::gen_phi_inst(Rc::clone(dest), pair, self.get_curr_bb())
   }
@@ -160,14 +160,14 @@ impl IRBuilder {
     &self,
     condi_br: bool,
     src: Option<Rc<RefCell<Value>>>,
-    true_bb_label: &Rc<RefCell<Value>>,
-    false_bb_label: Option<Rc<RefCell<Value>>>,
+    true_bb_label: Value,
+    false_bb_label: Option<Value>,
   ) -> Instruction 
   {
     Instruction::gen_br_inst(
       condi_br,
       src,
-      Rc::clone(true_bb_label),
+      true_bb_label,
       false_bb_label,
       self.get_curr_bb()
     )
@@ -186,7 +186,7 @@ impl IRBuilder {
     self.gen_br_inst(
       true,
       Some(Rc::clone(src)),
-      &true_bb.borrow().get_label(),
+      true_bb.borrow().get_label(),
       Some(false_bb.borrow().get_label())
     )
   }
@@ -194,7 +194,7 @@ impl IRBuilder {
   pub fn gen_uncondi_br_inst(&self, dest: &Rc<RefCell<BasicBlock>>) -> Instruction {
     let bb = self.get_curr_bb();
     self.construct_edge_between_bb(&bb, dest);
-    self.gen_br_inst(false, None, &dest.borrow().get_label(), None)
+    self.gen_br_inst(false, None, dest.borrow().get_label(), None)
   }
 
   pub fn gen_store_inst(
@@ -247,7 +247,7 @@ impl IRBuilder {
 
   pub fn gen_new_basicblock(&mut self) -> Rc<RefCell<BasicBlock>> {
     let mut bb = BasicBlock::new();
-    bb.set_label(Rc::new(RefCell::new(Value::new_label(self.gen_new_num()))));
+    bb.set_label(Value::new_label(self.gen_new_num()));
     bb.set_parent(self.get_curr_func());
     Rc::new(RefCell::new(bb))
   }

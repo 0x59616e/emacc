@@ -6,9 +6,9 @@ use std::rc::Rc;
 
 pub struct BasicBlock {
   parent: Option<Rc<RefCell<Function>>>,
-  label: Option<Rc<RefCell<Value>>>,
-  succ: Vec<Rc<RefCell<Value>>>,
-  pred: Vec<Rc<RefCell<Value>>>,
+  label: Option<Value>,
+  succ: Vec<Value>,
+  pred: Vec<Value>,
   inst_list: Vec<Instruction>,
 }
 
@@ -24,9 +24,9 @@ impl BasicBlock {
   }
 
   pub fn print(&self) {
-    print!("\n{}:\t\t\t\t\t;preds: ", self.get_label().borrow());
+    print!("\n{}:\t\t\t\t\t;preds: ", self.get_label());
     for pred in self.pred.iter() {
-      print!("{} ", pred.borrow());
+      print!("{} ", pred);
     }
     println!("");
   
@@ -36,7 +36,7 @@ impl BasicBlock {
     }
   }
 
-  pub fn is_terminate(&self) -> bool {
+  pub fn is_terminated(&self) -> bool {
     if let Some(last_inst) = self.inst_list.last() {
       last_inst.is_terminate_inst()
     } else {
@@ -56,12 +56,12 @@ impl BasicBlock {
     self.parent = Some(parent);
   }
 
-  pub fn set_label(&mut self, label: Rc<RefCell<Value>>) {
+  pub fn set_label(&mut self, label: Value) {
     self.label = Some(label);
   }
 
-  pub fn get_label(&self) -> Rc<RefCell<Value>> {
-    Rc::clone(self.label.as_ref().expect("There should've been a label..."))
+  pub fn get_label(&self) -> Value {
+    self.label.expect("There should've been a label...")
   }
 
   pub fn insert(&mut self, inst: Instruction) {

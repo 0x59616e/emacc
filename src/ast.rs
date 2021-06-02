@@ -226,7 +226,7 @@ impl Stmt for IfStmt {
     irbuilder.enter_basicblock_scope(&then_block);
     self.then_stmt.emit_ir(irbuilder);
 
-    if !then_block.borrow().is_terminate() {
+    if !then_block.borrow().is_terminated() {
       let br_inst = irbuilder.gen_uncondi_br_inst(&cont_block);
       irbuilder.insert_inst(br_inst);
     }
@@ -235,7 +235,7 @@ impl Stmt for IfStmt {
       irbuilder.enter_basicblock_scope(&else_block);
       self.else_stmt.as_ref().unwrap().emit_ir(irbuilder);
 
-      if !else_block.borrow().is_terminate() {
+      if !else_block.borrow().is_terminated() {
         let br_inst = irbuilder.gen_uncondi_br_inst(&cont_block);
         irbuilder.insert_inst(br_inst);
       }
