@@ -62,8 +62,8 @@ pub struct FunctionDef {
 impl FunctionDef {
   pub fn param_list(
     &self,
-  ) -> std::collections::hash_map::Iter<String, Rc<RefCell<SymTabEntry>>> {
-    self.local_var_list[0].iter()
+  ) -> std::collections::hash_map::Values<String, Rc<RefCell<SymTabEntry>>> {
+    self.local_var_list[0].values()
   }
 
   pub fn local_var_list(
@@ -78,14 +78,14 @@ impl Stmt for FunctionDef {
     ir_builder.enter_new_func_scope(&self.func_prototype);
 
     // Generate virtual register for function parameter.
-    for (_, parm) in self.param_list() {
+    for parm in self.param_list() {
       ir_builder.gen_new_vreg(parm.borrow().get_type());
     }
 
     ir_builder.enter_new_basicblock_scope();
 
     // Generate alloca instruction for all local variable.
-    for (_name, var) in self.local_var_list() {
+    for var in self.local_var_list().map(|(_, var)| var) {
       let inst = ir_builder.gen_alloca_inst(var.borrow().get_type());
       {
         var.borrow_mut().set_address(inst.get_address().unwrap());
@@ -96,7 +96,7 @@ impl Stmt for FunctionDef {
     // generate store instruction for function parameter
     for (src_reg, param) in self.param_list()
                                 .enumerate()
-                                .map(|(reg_num, (_name, param))| 
+                                .map(|(reg_num, param)|
                                     (ir_builder.gen_vreg(reg_num, param.borrow().get_type()), param)) {
       let inst = ir_builder.gen_store_inst(src_reg, param.borrow().get_address().unwrap());
       ir_builder.insert_inst(inst);

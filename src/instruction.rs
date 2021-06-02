@@ -90,9 +90,8 @@ impl Inst for BranchInst {
     print!("label {}", self.true_bb_label);
     if let Some(false_bb_label) = self.false_bb_label {
       print!(", label {}", false_bb_label);
-    } else {
-      println!("");
     }
+    println!("");
   }
 
   fn is_terminate_inst(&self) -> bool {
