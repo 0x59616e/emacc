@@ -133,15 +133,7 @@ impl IRBuilder {
     binop: BinOpType,
   ) -> Instruction
   {
-    let ty = match binop {
-      BinOpType::Equal        => CmpTy::Eq,
-      BinOpType::NotEqual     => CmpTy::Ne,
-      BinOpType::GreaterEqual => CmpTy::Ge,
-      BinOpType::Greater      => CmpTy::Gt,
-      BinOpType::LessEqual    => CmpTy::Le,
-      BinOpType::Less         => CmpTy::Lt,
-      _ => panic!("What the fuck is this operator ????"),
-    };
+    let ty = CmpTy::from(binop);
     Instruction::gen_cmp_inst(Rc::clone(src1), Rc::clone(src2), Rc::clone(dest), ty, self.get_curr_bb())
   }
 
@@ -224,7 +216,7 @@ impl IRBuilder {
     }
   }
 
-  pub fn construct_edge_between_bb(
+  fn construct_edge_between_bb(
     &self,
     from: &Rc<RefCell<BasicBlock>>,
     to: &Rc<RefCell<BasicBlock>>

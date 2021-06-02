@@ -1,4 +1,5 @@
 use crate::basicblock::*;
+use crate::parser::BinOpType;
 use crate::value::Value;
 use std::cell::RefCell;
 use std::fmt;
@@ -130,6 +131,19 @@ pub enum CmpTy {
   Le  // less than or equal
 }
 
+impl From<BinOpType> for CmpTy {
+  fn from(binop: BinOpType) -> CmpTy {
+    match binop {
+      BinOpType::Equal        => CmpTy::Eq,
+      BinOpType::NotEqual     => CmpTy::Ne,
+      BinOpType::GreaterEqual => CmpTy::Ge,
+      BinOpType::Greater      => CmpTy::Gt,
+      BinOpType::LessEqual    => CmpTy::Le,
+      BinOpType::Less         => CmpTy::Lt,
+      _ => panic!("What the fuck is this operator ????"),
+    }
+  }
+}
 impl fmt::Display for CmpTy {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
