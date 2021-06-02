@@ -187,6 +187,18 @@ pub enum BinaryInstTy {
   Xor, // bitwise ^
 }
 
+impl From<BinOpType> for BinaryInstTy {
+  fn from(binop: BinOpType) -> BinaryInstTy {
+    match binop {
+      BinOpType::Plus  => BinaryInstTy::Add,
+      BinOpType::Minus => BinaryInstTy::Sub,
+      BinOpType::Mul   => BinaryInstTy::Mul,
+      BinOpType::Div   => BinaryInstTy::Div,
+      _ => panic!("What the fuck is this operator ????"),
+    }
+  }
+}
+
 impl fmt::Display for BinaryInstTy {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {

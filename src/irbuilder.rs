@@ -43,6 +43,7 @@ impl IRBuilder {
     self.leave_basicblock_scope();
     self.leave_func_scope();
   }
+
   pub fn gen_new_vreg(&mut self, ty: Type) -> Rc<RefCell<Value>> {
     Rc::new(RefCell::new(Value::new_register(self.gen_new_num(), DataTy::from(ty))))
   }
@@ -96,7 +97,8 @@ impl IRBuilder {
     &self,
     func_name: String,
     arg_list: Vec<Rc<RefCell<Value>>>
-  ) -> Instruction {
+  ) -> Instruction
+  {
     Instruction::gen_call_inst(None, func_name, arg_list, self.get_curr_bb())
   }
 
@@ -116,13 +118,7 @@ impl IRBuilder {
     binop: BinOpType
   ) -> Instruction
   {
-    let ty = match binop {
-      BinOpType::Plus  => BinaryInstTy::Add,
-      BinOpType::Minus => BinaryInstTy::Sub,
-      BinOpType::Mul   => BinaryInstTy::Mul,
-      BinOpType::Div   => BinaryInstTy::Div,
-      _ => panic!("What the fuck is this operator ????"),
-    };
+    let ty = BinaryInstTy::from(binop);
     Instruction::gen_binary_inst(Rc::clone(src1), Rc::clone(src2), Rc::clone(dest), ty, self.get_curr_bb())
   }
   pub fn gen_cmp_inst(
