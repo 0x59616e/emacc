@@ -4,7 +4,6 @@ use crate::lex::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::fmt;
-use std::mem;
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum BinOpType {

@@ -94,10 +94,8 @@ impl Stmt for FunctionDef {
     }
 
     // generate store instruction for function parameter
-    for (src_reg, param) in self.param_list()
-                                .enumerate()
-                                .map(|(reg_num, param)|
-                                    (irbuilder.gen_vreg(reg_num, param.borrow().get_type()), param)) {
+    for param in self.param_list() {
+      let src_reg = param.borrow().get_address().expect("No address??");
       let inst = irbuilder.gen_store_inst(&src_reg, &param.borrow().get_address().unwrap());
       irbuilder.insert_inst(inst);
     }
