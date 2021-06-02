@@ -24,7 +24,12 @@ impl BasicBlock {
   }
 
   pub fn print(&self) {
-    println!("\n{}:", self.get_label());
+    print!("\n{}:\t\t\t\t\t;preds: ", self.get_label());
+    for pred in self.pred.iter() {
+      print!("{} ", pred);
+    }
+    println!("");
+  
     for inst in self.inst_list.iter() {
       print!("  ");
       inst.print();

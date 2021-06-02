@@ -172,6 +172,9 @@ impl IRBuilder {
     false_bb: &Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
+    let bb = self.get_curr_bb();
+    self.construct_edge_between_bb(&bb, true_bb);
+    self.construct_edge_between_bb(&bb, false_bb);
     self.gen_br_inst(
       true,
       Some(src),
@@ -181,6 +184,8 @@ impl IRBuilder {
   }
 
   pub fn gen_uncondi_br_inst(&self, dest: &Rc<RefCell<BasicBlock>>) -> Instruction {
+    let bb = self.get_curr_bb();
+    self.construct_edge_between_bb(&bb, dest);
     self.gen_br_inst(false, None, dest.borrow().get_label(), None)
   }
 

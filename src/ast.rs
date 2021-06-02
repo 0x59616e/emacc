@@ -226,14 +226,11 @@ impl Stmt for IfStmt {
     ir_builder.insert_inst(br_inst);
 
     let curr_bb = ir_builder.get_curr_bb();
-    ir_builder.construct_edge_between_bb(&curr_bb, &then_block);
-    ir_builder.construct_edge_between_bb(&curr_bb, &else_block);
 
     ir_builder.enter_basicblock_scope(Rc::clone(&then_block));
     self.then_stmt.emit_ir(ir_builder);
 
     if !then_block.borrow().is_terminate() {
-      ir_builder.construct_edge_between_bb(&then_block, &cont_block);
       let br_inst = ir_builder.gen_uncondi_br_inst(&cont_block);
       ir_builder.insert_inst(br_inst);
     }
@@ -243,7 +240,6 @@ impl Stmt for IfStmt {
       self.else_stmt.as_ref().unwrap().emit_ir(ir_builder);
 
       if !else_block.borrow().is_terminate() {
-        ir_builder.construct_edge_between_bb(&else_block, &cont_block);
         let br_inst = ir_builder.gen_uncondi_br_inst(&cont_block);
         ir_builder.insert_inst(br_inst);
       }
