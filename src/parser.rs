@@ -1,9 +1,12 @@
-use crate::lex::{Token, TokenKind};
-use crate::sema;
-use std::collections::HashMap;
-type TokenIterator = std::iter::Peekable<std::vec::IntoIter<Token>>;
+use crate::ast::*;
+use crate::symtab::*;
+use crate::lex::*;
+use std::rc::Rc;
+use std::cell::RefCell;
+use std::fmt;
+use std::mem;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum BinOpType {
   Comma,         // ,
   Assignment,    // =
@@ -19,6 +22,9 @@ pub enum BinOpType {
   Minus,         // -
   Mul,           // *
   Div,           // /
+  _BitwiseAnd,    // &
+  _BitwiseOr,     // |
+  _BitwiseXor,    // ^
 }
 
 enum Level {
@@ -33,546 +39,475 @@ enum Level {
   _And             = 8,    // &
   Equality        = 9,    // ==, !=
   Relational      = 10,   //  >=, <=, >, <
-  _Spaceship       = 11,   // <=>
-  _Shift           = 12,   // <<, >>
-  Additive        = 13,   // -, +
-  Multiplicative  = 14,   // *, /, %
-  _PointerToMember = 15    // .*, ->*
+  _Shift           = 11,   // <<, >>
+  Additive        = 12,   // -, +
+  Multiplicative  = 13,   // *, /, %
+  _PointerToMember = 14    // .*, ->*
 }
 type PrecLevel = i32;
 
-pub struct Initializer {
-  pub init_expr: Box<Node>,
+pub struct Parser {
+  symtab: SymTab,
+  toklist: std::iter::Peekable<std::vec::IntoIter<Token>>,
 }
 
-pub enum NodeKind {
-  Program {
-    func_or_decl_list: Vec<Node>,
-  },
-  FunctionDefinition {
-    prototype: Object,
-    body: Box<Node>,
-  },
-  VarDecl {
-    object: Object,
-    init: Option<Box<Initializer>>,
-  },
-  CompoundStmt {
-    body: Vec<Node>
-  },
-  IfStmt {
-    cond_expr: Box<Node>,
-    then_stmt: Vec<Node>,
-    else_stmt: Option<Vec<Node>>,
-  },
-  ReturnStmt {
-    expr: Option<Box<Node>>
-  },
-  BinOpExpr {
-    op: BinOpType,
-    lhs: Box<Node>,
-    rhs: Box<Node>
-  },
-  CallExpr {
-    func: Object,
-    arg_list: Vec<Node>,
-  },
-  UnaryExpr(Box<Node>),
-  Variable(Object),
-  Constant(i32),
-}
-
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum ObjectKind {
-  Int,
-  Function,
-}
-
-#[derive(Clone, Debug)]
-pub struct Object {
-  pub name: String,
-  pub kind: ObjectKind,
-  // function
-  pub return_type: Option<ObjectKind>,
-  pub para_list: Option<Vec<Object>>,
-}
-
-pub struct Node {
-  kind: NodeKind,
-}
-
-struct Scope {
-  // The function in which this scope currently reside
-  function: Option<Object>,
-  // global variable or functio definition
-  global_decl_set: HashMap<String, Object>,
-  // local variable
-  local_decl_set: Vec<HashMap<String, Object>>
-}
-
-impl Node {
-  pub fn get_kind(&self) -> &NodeKind {
-    return &self.kind;
-  }
-}
-
-impl Scope {
-  fn new() -> Scope {
-    Scope {
-      function: None,
-      global_decl_set: HashMap::new(),
-      local_decl_set: Vec::new(),
+impl Parser {
+  pub fn new(toklist: Vec<Token>) -> Parser {
+    Parser {
+      symtab: SymTab::new(),
+      toklist: toklist.into_iter().peekable(),
     }
   }
 
-  fn enter_new_scope(&mut self) {
-    self.local_decl_set.push(HashMap::new());
-  }
-
-  fn enter_new_function_scope(&mut self, function: Object) {
-    self.function = Some(function);
-    self.enter_new_scope();
-  }
-
-  fn leave_scope(&mut self) {
-    self.local_decl_set.pop();
-    if self.local_decl_set.is_empty() {
-      self.function = None;
+  fn have_token(&mut self) -> bool {
+    if let None = self.toklist.peek() {
+      return false;
     }
+    true
   }
 
-  fn insert_local_var(&mut self, object: Object) {
-    self.local_decl_set.last_mut().unwrap().insert(object.name.clone(), object);
+  fn peek_token(&mut self) -> &Token {
+    self.toklist.peek().unwrap()
   }
 
-  fn insert_global_var(&mut self, object: Object) {
-    self.global_decl_set.insert(object.name.clone(), object);
+  fn skip_token(&mut self) -> Token {
+    self.toklist.next().unwrap()
   }
 
-  fn find_var(&self, name: &String) -> Option<&Object> {
-    for table in self.local_decl_set.iter().rev() {
-      let res = table.get(name);
-      if let Some(_) = res {
-        return res;
+  fn consume_token(&mut self, kind: TokenKind) -> Option<Token> {
+    let tok = self.toklist.next_if(|x| x.is(kind))?;
+    Some(tok)
+  }
+
+  // translation-unit -> external-declaration
+  //                     translation-unit external-declaration
+  //----------------------------------------------------------
+  // external-declaration -> function-definition
+  //                         declaration
+  //----------------------------------------------------------
+  // function-definition -> declaration-specifiers declarator compound-statement
+  //----------------------------------------------------------
+  // declaration -> declaration-specifiers init-declarator-list[opt] ;
+  //----------------------------------------------------------
+  // init-declarator-list -> init-declarator
+  //                          init-declarator-list , init-declarator
+  //----------------------------------------------------------
+  // init-declarator -> declarator
+  //                    declarator '=' initializer
+  //----------------------------------------------------------
+  // initializer -> assignment-expression
+  //                { initializer-list }
+  //                { initializer-list , }
+  pub fn run(&mut self) -> TranslationUnit {
+    let mut func_or_decl_list = Vec::new();
+
+    while self.have_token() {
+      let declspec = self.parse_declaration_specifiers();
+      if let (func_prototype, Some(para_list)) = self.parse_declarator(declspec) {
+        let func_prototype = Rc::new(RefCell::new(func_prototype));
+        self.symtab.insert_global_var(Rc::clone(&func_prototype));
+        self.symtab.enter_new_scope();
+
+        for (i, mut parm) in para_list.into_iter().enumerate() {
+          parm.set_as_parm(i);
+          self.symtab.insert_local_var(Rc::new(RefCell::new(parm)));
+        }
+
+        func_or_decl_list.push(FunctionDef {
+          func_prototype: func_prototype,
+          body: self.parse_compound_stmt(),
+          local_var_list: self.symtab.decl_set.drain(1..).collect(),
+        });
+
+        self.symtab.leave_scope();
+      } else {
+        panic!("Parser::run: We haven't supported global var decl");
       }
+
     }
-
-    self.global_decl_set.get(name)
-  }
-}
-
-impl Node {
-  fn new_binary_node(op: BinOpType, lhs: Node, rhs: Node) -> Node {
-    Node {
-      kind: NodeKind::BinOpExpr {
-        op: op,
-        lhs: Box::new(lhs),
-        rhs: Box::new(rhs),
-      }
+    TranslationUnit {
+      func_or_decl_list
     }
   }
-}
 
-fn consume(tokiter: &mut TokenIterator, kind: TokenKind) -> Option<Token> {
-  let tok = tokiter.next_if(|x| x.is(kind))?;
-  Some(tok)
-}
+  fn parse_declaration(&mut self) -> Vec<Box<dyn Stmt>> {
+    let declspec = self.parse_declaration_specifiers();
+    let mut var_decl_stmt_list: Vec<Box<dyn Stmt>> = Vec::new();
 
-fn get_next_op_prec(tokiter: &mut TokenIterator) -> PrecLevel {
-  match tokiter.peek().unwrap().kind {
-    TokenKind::Comma => Level::Comma as PrecLevel,
-    TokenKind::Assignment => Level::Assignment as PrecLevel,
-    TokenKind::LogicalOr => Level::LogicalOr as PrecLevel,
-    TokenKind::LogicalAnd => Level::LogicalAnd as PrecLevel,
-    TokenKind::EqualEqual |
-    TokenKind::NotEqual   => Level::Equality as PrecLevel,
-    TokenKind::Less      |
-    TokenKind::LessEqual |
-    TokenKind::Greater   |
-    TokenKind::GreaterEqual => Level::Relational as PrecLevel,
-    TokenKind::Plus |
-    TokenKind::Minus => Level::Additive as PrecLevel,
-    TokenKind::Star |
-    TokenKind::Div   => Level::Multiplicative as PrecLevel,
-    _ => Level::Unknown as PrecLevel,
-  }
-}
+    if let None = self.consume_token(TokenKind::Semicolon) {
+      loop {
+        if let (object, None) = self.parse_declarator(declspec.clone()) {
+          let object = Rc::new(RefCell::new(object));
+          self.symtab.insert_local_var(Rc::clone(&object));
 
-fn get_next_op(tokiter: &mut TokenIterator) -> BinOpType {
-  let tok = tokiter.next().unwrap();
-  match tok.kind {
-    TokenKind::Comma => BinOpType::Comma,
-    TokenKind::Assignment => BinOpType::Assignment,
-    TokenKind::Plus => BinOpType::Plus,
-    TokenKind::Minus => BinOpType::Minus,
-    TokenKind::Star => BinOpType::Mul,
-    TokenKind::Div  => BinOpType::Div,
-    TokenKind::EqualEqual => BinOpType::Equal,
-    TokenKind::NotEqual => BinOpType::NotEqual,
-    TokenKind::Greater => BinOpType::Greater,
-    TokenKind::GreaterEqual => BinOpType::GreaterEqual,
-    TokenKind::Less => BinOpType::Less,
-    TokenKind::LessEqual => BinOpType::LessEqual,
-    TokenKind::LogicalOr => BinOpType::LogicalOr,
-    TokenKind::LogicalAnd => BinOpType::LogicalAnd,
-    _ => panic!("Unregonizable operator: '{:?}'", tok),
-  }
-}
+          let mut init = None;
 
-// cast-expression -> unary-exprssion
-//                    (type-name) cast-exprssion
-//-----------------------------------------------
-// unary-expression -> postfix-expression
-//                    ++ unary-expression
-//                    -- unary-expression
-//                    unary-operator cast-expression
-//                    sizeof unary-expression
-//                    sizeof ( type-name )
-//                    _Alignof ( type-name )
-// ----------------------------------------------
-// postfix-expression -> primary-expression
-//                       postfix-expression [ expression ]
-//                       postfix-expression ( argument-expression-listopt )
-//                       postfix-expression . identifier
-//                       postfix-expression -> identifier
-//                       postfix-expression ++
-//                       postfix-expression --
-//                       ( type-name ) { initializer-list }
-//                       ( type-name ) { initializer-list , }
-//-------------------------------------------------
-// primary-exprssion -> primary-expression:
-//                      identifier
-//                      constant
-//                      string-literal
-//                      ( expression )
-
-fn parse_cast_expr(tokiter: &mut TokenIterator, scope: &Scope) -> Node {
-  let tok = tokiter.next().unwrap();
-
-  let node = match tok.kind {
-    TokenKind::Identifier(name) => {
-      let object = scope.find_var(&name).expect("undeclared variable");
-      match object.kind {
-        ObjectKind::Int => Node {kind: NodeKind::Variable(object.clone())},
-        ObjectKind::Function => {
-          consume(tokiter, TokenKind::LParen);
-          let mut arg_list: Vec<Node> = vec![];
-          if let None = consume(tokiter, TokenKind::RParen) {
-            loop {
-              arg_list.push(parse_assign_expr(tokiter, scope));
-              if let None = consume(tokiter, TokenKind::Comma) {
-                consume(tokiter, TokenKind::RParen);
-                break;
-              }
-            }
+          if let Some(_) = self.consume_token(TokenKind::Assignment) {
+            init = Some(Box::new(Initializer {
+              init_expr: self.parse_assign_expr(),
+            }));
           }
-          Node {kind: NodeKind::CallExpr {
-            func: object.clone(),
-            arg_list,
-          }}
-        },
-        _ => panic!("????"),
+
+          var_decl_stmt_list.push(Box::new(VarDeclStmt {
+            object: Rc::clone(&object),
+            init: init,
+          }));
+
+          if let None = self.consume_token(TokenKind::Comma) {
+            self.consume_token(TokenKind::Semicolon);
+            break;
+          }
+        } else {
+          panic!("parse_declaration: Function definition??");
+        }
       }
-    },
-    TokenKind::Num(num) => Node {kind: NodeKind::Constant(num)},
-    TokenKind::LParen => {
-      let node = parse_expr(tokiter, scope);
-      consume(tokiter, TokenKind::RParen);
-      node
     }
-    _ => panic!("?????"),
-  };
-  node
-}
+    var_decl_stmt_list
+  }
 
-fn parse_rhs_of_binary_op(tokiter: &mut TokenIterator,
-                          scope: &Scope,
-                          mut lhs: Node,
-                          min_prec_level: PrecLevel) -> Node {
-  loop {
-    let op_prec = get_next_op_prec(tokiter);
+  // declaration-specifiers ->  storage-class-specifier
+  //                            type-specifier
+  //                            type-qualifier
+  //                            function-specifier
+  //                            alignment-specifier
+  //-----------------------------------------------------
+  // type-specifier -> int
+  fn parse_declaration_specifiers(&mut self) -> SymTabEntry {
+    self.consume_token(TokenKind::KwInt);
 
-    if op_prec < min_prec_level {
-      return lhs;
+    SymTabEntry {
+      name: String::new(),
+      entry_type: Type::Int,
+      scope_id: None,
+      addr: None,
+      return_type: None,
+      prototype: None,
+      is_parm: None,
+    }
+  }
+
+  // declarator -> pointer[opt] direct-declarator
+  //----------------------------------------------------
+  // direct-declarator -> identifier
+  //                      direct-declarator ( parameter-type-list )
+  //                      direct-declarator ( identifier-list[opt] )
+  //----------------------------------------------------
+  // parameter-type-list -> parameter-list
+  //----------------------------------------------------
+  // parameter-list -> parameter-declaration
+  //                   parameter-list , parameter-declaration
+  //----------------------------------------------------
+  // parameter-declaration -> declaration-specifiers declarator
+  fn parse_declarator(&mut self, mut object: SymTabEntry) -> (SymTabEntry, Option<Vec<SymTabEntry>>) {
+    let tok = self.skip_token();
+
+    if let TokenKind::Identifier(name) = tok.kind {
+      object.set_name(name);
+    } else {
+      panic!("parse_declarator: No Identifier");
     }
 
-    let op = get_next_op(tokiter);
-    let mut rhs = parse_cast_expr(tokiter, scope);
+    let mut prototype: Vec<Type> = Vec::new();
+    let mut para_list: Vec<SymTabEntry> = Vec::new();
 
-    let next_op_prec = get_next_op_prec(tokiter);
+    if let Some(_) = self.consume_token(TokenKind::LParen) {
+      // This is a function
+      object.set_as_func();
 
-    let is_right_assoc = op == BinOpType::Assignment;
-    if op_prec < next_op_prec || 
-       (op_prec == next_op_prec && is_right_assoc) {
-      rhs = parse_rhs_of_binary_op(tokiter,
-                                   scope,
-                                   rhs,
-                                   op_prec + !(is_right_assoc) as PrecLevel);
+      loop {
+        if let Some(_) = self.consume_token(TokenKind::RParen) {
+          break;
+        }
+
+        if para_list.len() > 0 {
+          if let None = self.consume_token(TokenKind::Comma) {
+            panic!("parse_declarator: There should've been a comma")
+          }
+        }
+
+        let declspec = self.parse_declaration_specifiers();
+        match self.parse_declarator(declspec) {
+          (_, Some(_)) => panic!("parse_declarator: We haven't supported function pointer..."),
+          (parameter, None) => {
+            prototype.push(parameter.get_type());
+            para_list.push(parameter);
+          }
+        }
+      }
+
+      object.set_func_prototype(prototype);
+
+      return (object, Some(para_list));
+    }
+    (object, None)
+  }
+
+  // compound-stmt -> { block-item-list[opt] }
+  //------------------------------------------
+  // block-item-list -> block-item
+  //                    block-item-list block-item
+  //------------------------------------------
+  // block-item -> declaration
+  //               statement
+  fn parse_compound_stmt(&mut self) -> Box<CompoundStmt> {
+    if let None = self.consume_token(TokenKind::LBrace) {
+      panic!("parse_compound_stmt: No left brace");
+    }
+    self.symtab.enter_new_scope();
+
+    let mut stmt_list: Vec<Box<dyn Stmt>> = Vec::new();
+
+    loop {
+      let tok = self.peek_token();
+      if tok.is(TokenKind::KwInt) {
+        // declaration
+        stmt_list.append(&mut self.parse_declaration());
+      } else if !tok.is(TokenKind::RBrace) {
+        // statement
+        stmt_list.push(self.parse_stmt());
+      } else {
+        break;
+      }
     }
 
-    lhs = Node::new_binary_node(op, lhs, rhs);
-  }
-}
+    if let None = self.consume_token(TokenKind::RBrace) {
+      panic!("parse_compound_stmt: No right brace");
+    }
 
-fn parse_assign_expr(tokiter: &mut TokenIterator, scope: &Scope) -> Node {
-  let lhs = parse_cast_expr(tokiter, scope);
-  parse_rhs_of_binary_op(tokiter, scope, lhs, Level::Assignment as PrecLevel)
-}
-// expresstion-statement -> expression[opt] ;
-//------------------------------------------
-// expression -> assignment-expression
-//               expression , assignment-expresion
-fn parse_expr(tokiter: &mut TokenIterator, scope: &Scope) -> Node {
-  let lhs = parse_assign_expr(tokiter, scope);
-  parse_rhs_of_binary_op(tokiter, scope, lhs, Level::Comma as PrecLevel)
-}
-
-fn parse_expr_stmt(tokiter: &mut TokenIterator, scope: &Scope) -> Node {
-  let node = parse_expr(tokiter, scope);
-  consume(tokiter, TokenKind::Semicolon);
-  return node;
-}
-
-// jump-statement -> return expression[opt] ';'
-fn parse_jump_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
-  consume(tokiter, TokenKind::KwReturn);
-  let mut node = Node {
-    kind: NodeKind::ReturnStmt{expr: None},
-  };
-  if let None = consume(tokiter, TokenKind::Semicolon) {
-    node = Node {
-      kind: NodeKind::ReturnStmt{expr: Some(Box::new(parse_expr(tokiter, scope)))},
-    };
-    consume(tokiter, TokenKind::Semicolon);
+    self.symtab.leave_scope();
+    Box::new(CompoundStmt{
+      body: stmt_list,
+    })
   }
-  node
-}
-// selection-statement -> if ( expression ) statement
-//                        if ( expression ) statement else statement
-fn parse_selection_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
-  consume(tokiter, TokenKind::KwIf);
-  consume(tokiter, TokenKind::LParen);
-  let cond_expr = Box::new(parse_expr(tokiter, scope));
-  consume(tokiter, TokenKind::RParen);
-  let then_stmt = parse_stmt(tokiter, scope);
-  let mut else_stmt = None;
-  if let Some(_) = consume(tokiter, TokenKind::KwElse) {
-    else_stmt = Some(parse_stmt(tokiter, scope));
+  // statement ->  compound-statement
+  //               expression-statement
+  //               selection-statement
+  //               jump-statement
+  //------------------------------------
+  fn parse_stmt(&mut self) -> Box<dyn Stmt> {
+    let tok = self.peek_token();
+    match tok.kind {
+      TokenKind::LBrace => self.parse_compound_stmt(),
+      TokenKind::KwIf => self.parse_selection_stmt(),
+      TokenKind::KwReturn => self.parse_jump_stmt(),
+      _ => self.parse_expr_stmt(),
+    }
   }
-  let node = Node {
-    kind: NodeKind::IfStmt {
+  // jump-statement -> return expression[opt] ';'
+  fn parse_jump_stmt(&mut self) -> Box<dyn Stmt> {
+    self.consume_token(TokenKind::KwReturn);
+    let node: Box<ReturnStmt>;
+
+    if let None = self.consume_token(TokenKind::Semicolon) {
+      node = Box::new(ReturnStmt{expr: Some(self.parse_expr())});
+      self.consume_token(TokenKind::Semicolon);
+    } else {
+      node = Box::new(ReturnStmt{expr: None});
+    }
+    node
+  }
+  // selection-statement -> if ( expression ) statement
+  //                        if ( expression ) statement else statement
+  fn parse_selection_stmt(&mut self) -> Box<dyn Stmt> {
+    self.consume_token(TokenKind::KwIf);
+    self.consume_token(TokenKind::LParen);
+    let cond_expr = self.parse_expr();
+    self.consume_token(TokenKind::RParen);
+    let then_stmt = self.parse_stmt();
+    let mut else_stmt = None;
+    if let Some(_) = self.consume_token(TokenKind::KwElse) {
+      else_stmt = Some(self.parse_stmt());
+    }
+
+    Box::new(IfStmt {
       cond_expr,
       then_stmt,
       else_stmt,
-    }
-  };
-
-  if !sema::check_on_if_stmt(&node) {
-    panic!("if statement");
+    })
+  }
+  // expresstion-statement -> expression[opt] ;
+  //------------------------------------------
+  // expression -> assignment-expression
+  //               expression , assignment-expresion
+  fn parse_expr_stmt(&mut self) -> Box<dyn Stmt> {
+    let node = self.parse_expr();
+    self.consume_token(TokenKind::Semicolon);
+    Box::new(ExprStmt {
+      expr: node,
+    })
   }
 
-  node
-}
-// statement ->  compound-statement
-//               expression-statement
-//               selection-statement
-//               jump-statement
-//------------------------------------
-fn parse_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Vec<Node> {
-  let mut stmt_list: Vec<Node> = Vec::new();
-  let tok = tokiter.peek().unwrap();
-  match tok.kind {
-    TokenKind::LBrace => stmt_list.push(parse_compound_stmt(tokiter, scope)),
-    TokenKind::KwIf => stmt_list.push(parse_selection_stmt(tokiter, scope)),
-    TokenKind::KwReturn => stmt_list.push(parse_jump_stmt(tokiter, scope)),
-    _ => stmt_list.push(parse_expr_stmt(tokiter, scope)),
-  }
-  stmt_list
-}
-// compound-stmt -> { block-item-list[opt] }
-//------------------------------------------
-// block-item-list -> block-item
-//                    block-item-list block-item
-//------------------------------------------
-// block-item -> declaration
-//               statement
-fn parse_compound_stmt(tokiter: &mut TokenIterator, scope: &mut Scope) -> Node {
-  if let None = consume(tokiter, TokenKind::LBrace) {
-    panic!("There should've been a left curly brace");
-  }
-  scope.enter_new_scope();
-
-  let mut node_list: Vec<Node> = Vec::new();
-  loop {
-    let tok = tokiter.peek().unwrap();
-    if tok.is(TokenKind::KwInt) {
-      // declaration
-      node_list.append(&mut parse_declaration(tokiter, scope));
-    } else if !tok.is(TokenKind::RBrace) {
-      // statement
-      node_list.append(&mut parse_stmt(tokiter, scope));
-    } else {
-      break;
-    }
+  fn parse_expr(&mut self) -> Box<dyn Expr> {
+    let lhs = self.parse_assign_expr();
+    self.parse_rhs_of_binary_op(lhs, Level::Comma as PrecLevel)
   }
 
-  if let None = consume(tokiter, TokenKind::RBrace) {
-    panic!("There should've been a right curly brace");
-  }
-  scope.leave_scope();
-
-  Node {
-    kind: NodeKind::CompoundStmt{body: node_list,}
-  }
-}
-
-// declarator -> pointer[opt] direct-declarator
-//----------------------------------------------------
-// direct-declarator -> identifier
-//                      direct-declarator ( parameter-type-list )
-//                      direct-declarator ( identifier-list[opt] )
-//----------------------------------------------------
-// parameter-type-list -> parameter-list
-//----------------------------------------------------
-// parameter-list -> parameter-declaration
-//                   parameter-list , parameter-declaration
-//----------------------------------------------------
-// parameter-declaration -> declaration-specifiers declarator
-
-fn parse_declarator(tokiter: &mut TokenIterator, mut object: Object) -> Object {
-  let tok = tokiter.next().unwrap();
-
-  if let TokenKind::Identifier(name) = tok.kind {
-    object.name = name;
-  } else {
-    panic!("There should've beeen an identifier");
+  fn parse_assign_expr(&mut self) -> Box<dyn Expr> {
+    let lhs = self.parse_cast_expr();
+    self.parse_rhs_of_binary_op(lhs, Level::Assignment as PrecLevel)
   }
 
-  if let Some(_) = tokiter.next_if(|x| x.is(TokenKind::LParen)) {
-    // This is a function
-    object.return_type = Some(object.kind);
-    object.kind = ObjectKind::Function;
-
-    let mut para_list: Vec<Object> = Vec::new();
-
+  fn parse_rhs_of_binary_op(
+    &mut self,
+    mut lhs: Box<dyn Expr>,
+    min_prec_level: PrecLevel
+  ) -> Box<dyn Expr> {
     loop {
-      if let Some(_) = consume(tokiter, TokenKind::RParen) {
-        break;
+      let op_prec = self.get_next_op_prec();
+
+      if op_prec < min_prec_level {
+        return lhs;
       }
 
-      if para_list.len() > 0 {
-        if let None = consume(tokiter, TokenKind::Comma) {
-          panic!("There should've been a comma");
-        }
+      let op = self.get_next_op();
+      let mut rhs = self.parse_cast_expr();
+
+      let next_op_prec = self.get_next_op_prec();
+
+      let is_right_assoc = op == BinOpType::Assignment;
+
+      if op_prec < next_op_prec ||
+        (op_prec == next_op_prec && is_right_assoc) {
+        rhs = self.parse_rhs_of_binary_op(rhs,
+                                          op_prec + !(is_right_assoc) as PrecLevel)
       }
 
-      let parameter_specifier = parse_declaration_specifiers(tokiter);
-      let parameter = parse_declarator(tokiter, parameter_specifier);
-
-      para_list.push(parameter);
-    }
-    object.para_list = Some(para_list);
-  }
-  object
-}
-// declaration-specifiers ->  storage-class-specifier
-//                            type-specifier
-//                            type-qualifier
-//                            function-specifier
-//                            alignment-specifier
-//-----------------------------------------------------
-// type-specifier -> int
-fn parse_declaration_specifiers(tokiter: &mut TokenIterator) -> Object {
-  consume(tokiter, TokenKind::KwInt);
-
-  Object {
-    name: String::new(),
-    kind: ObjectKind::Int,
-    return_type: None,
-    para_list: None,
-  }
-}
-
-// fn parse_declaration_specifiers(tokiter:)
-// translation-unit -> external-declaration
-//                     translation-unit external-declaration
-//----------------------------------------------------------
-// external-declaration -> function-definition
-//                         declaration
-//----------------------------------------------------------
-// function-definition -> declaration-specifiers declarator compound-statement
-//----------------------------------------------------------
-// declaration -> declaration-specifiers init-declarator-list[opt] ;
-//----------------------------------------------------------
-// init-declarator-list -> init-declarator
-//                          init-declarator-list , init-declarator
-//----------------------------------------------------------
-// init-declarator -> declarator
-//                    declarator '=' initializer
-//----------------------------------------------------------
-// initializer -> assignment-expression
-//                { initializer-list }
-//                { initializer-list , }
-fn parse_declaration(tokiter: &mut TokenIterator, scope: &mut Scope) -> Vec<Node> {
-  let decl_specifier = parse_declaration_specifiers(tokiter);
-  let mut node_list = Vec::new();
-  if let None = consume(tokiter, TokenKind::Semicolon) {
-    loop {
-      let object = parse_declarator(tokiter, decl_specifier.clone());
-      assert!(object.kind == ObjectKind::Int);
-      scope.insert_local_var(object.clone());
-
-      let mut init: Option<Box<Initializer>> = None;
-
-      if let Some(_) = consume(tokiter, TokenKind::Assignment) {
-        init = Some(Box::new(Initializer {
-          init_expr: Box::new(parse_assign_expr(tokiter, scope)),
-        }));
-      }
-
-      node_list.push(Node {
-        kind: NodeKind::VarDecl {
-          object,
-          init,
-        }
+      lhs = Box::new(BinOpExpr {
+        op,
+        lhs,
+        rhs,
       });
-
-      if let None = consume(tokiter, TokenKind::Comma) {
-        break;
-      }
     }
-    consume(tokiter, TokenKind::Semicolon);
   }
-  node_list
+  // cast-expression -> unary-exprssion
+  //                    (type-name) cast-exprssion
+  //-----------------------------------------------
+  // unary-expression -> postfix-expression
+  //                    ++ unary-expression
+  //                    -- unary-expression
+  //                    unary-operator cast-expression
+  //                    sizeof unary-expression
+  //                    sizeof ( type-name )
+  //                    _Alignof ( type-name )
+  // ----------------------------------------------
+  // postfix-expression -> primary-expression
+  //                       postfix-expression [ expression ]
+  //                       postfix-expression ( argument-expression-listopt )
+  //                       postfix-expression . identifier
+  //                       postfix-expression -> identifier
+  //                       postfix-expression ++
+  //                       postfix-expression --
+  //                       ( type-name ) { initializer-list }
+  //                       ( type-name ) { initializer-list , }
+  //-------------------------------------------------
+  // primary-exprssion -> primary-expression:
+  //                      identifier
+  //                      constant
+  //                      string-literal
+  //                      ( expression )
+  fn parse_cast_expr(&mut self) -> Box<dyn Expr> {
+    let tok = self.skip_token();
+
+    let node: Box<dyn Expr> = match tok.kind {
+      TokenKind::Identifier(name) => {
+        let object = self.symtab.find_var(&name).expect("undeclared variable").clone();
+        let object_borrow = object.borrow();
+        match object_borrow.get_type() {
+          Type::Int => Box::new(Var {object: Rc::clone(&object)}),
+          Type::Function => {
+            self.consume_token(TokenKind::LParen);
+
+            let mut arg_list = Vec::new();
+            if let None = self.consume_token(TokenKind::RParen) {
+              loop {
+                arg_list.push(self.parse_assign_expr());
+                if let None = self.consume_token(TokenKind::Comma) {
+                  self.consume_token(TokenKind::RParen);
+                  break;
+                }
+              }
+            }
+
+            Box::new(CallExpr {
+              func: Rc::clone(&object),
+              arg_list,
+            })
+          }
+          _ => panic!("'void' currently not supported")
+        }
+      }
+      TokenKind::Num(num) => Box::new(Constant{value: num}),
+      TokenKind::LParen => {
+        let node = self.parse_expr();
+        self.consume_token(TokenKind::RParen);
+        node
+      }
+      _ => panic!("cast_expr: {:?}", self.toklist),
+    };
+    node
+  }
+
+  fn get_next_op_prec(&mut self) -> PrecLevel {
+    match self.peek_token().kind {
+      TokenKind::Comma => Level::Comma as PrecLevel,
+      TokenKind::Assignment => Level::Assignment as PrecLevel,
+      TokenKind::LogicalOr => Level::LogicalOr as PrecLevel,
+      TokenKind::LogicalAnd => Level::LogicalAnd as PrecLevel,
+      TokenKind::EqualEqual |
+      TokenKind::NotEqual   => Level::Equality as PrecLevel,
+      TokenKind::Less      |
+      TokenKind::LessEqual |
+      TokenKind::Greater   |
+      TokenKind::GreaterEqual => Level::Relational as PrecLevel,
+      TokenKind::Plus |
+      TokenKind::Minus => Level::Additive as PrecLevel,
+      TokenKind::Star |
+      TokenKind::Div   => Level::Multiplicative as PrecLevel,
+      _ => Level::Unknown as PrecLevel,
+    }
+  }
+  
+  fn get_next_op(&mut self) -> BinOpType {
+    let tok = self.skip_token();
+    match tok.kind {
+      TokenKind::Comma => BinOpType::Comma,
+      TokenKind::Assignment => BinOpType::Assignment,
+      TokenKind::Plus => BinOpType::Plus,
+      TokenKind::Minus => BinOpType::Minus,
+      TokenKind::Star => BinOpType::Mul,
+      TokenKind::Div  => BinOpType::Div,
+      TokenKind::EqualEqual => BinOpType::Equal,
+      TokenKind::NotEqual => BinOpType::NotEqual,
+      TokenKind::Greater => BinOpType::Greater,
+      TokenKind::GreaterEqual => BinOpType::GreaterEqual,
+      TokenKind::Less => BinOpType::Less,
+      TokenKind::LessEqual => BinOpType::LessEqual,
+      TokenKind::LogicalOr => BinOpType::LogicalOr,
+      TokenKind::LogicalAnd => BinOpType::LogicalAnd,
+      _ => panic!("Unregonizable operator: '{:?}'", tok),
+    }
+  }
+  
 }
 
-pub fn parse(toklist: Vec<Token>) -> Node {
-
-  let mut tokiter = toklist.into_iter().peekable();
-  let mut scope = Scope::new();
-  let mut func_or_decl_list: Vec<Node> = vec![];
-
-  while let Some(_) = tokiter.peek() {
-    let function_specifier = parse_declaration_specifiers(&mut tokiter);
-    let function = parse_declarator(&mut tokiter, function_specifier);
-    scope.insert_global_var(function.clone());
-    scope.enter_new_function_scope(function.clone());
-    for parm in function.para_list.as_ref().unwrap().iter() {
-      scope.insert_local_var(parm.clone());
-    }
-
-    let node = Node {
-      kind: NodeKind::FunctionDefinition {
-        prototype: function,
-        body: Box::new(parse_compound_stmt(&mut tokiter, &mut scope)),
-      }
-    };
-    func_or_decl_list.push(node);
-    scope.leave_scope();
-  }
-  Node {
-    kind: NodeKind::Program {
-      func_or_decl_list,
+impl fmt::Display for BinOpType {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      BinOpType::Comma => write!(f, ","),
+      BinOpType::Assignment => write!(f, "="),
+      BinOpType::Plus => write!(f, "+"),
+      BinOpType::Minus => write!(f, "-"),
+      BinOpType::Mul => write!(f, "*"),
+      BinOpType::Div => write!(f, "/"),
+      BinOpType::Equal => write!(f, "=="),
+      BinOpType::NotEqual => write!(f, "!="),
+      BinOpType::Less => write!(f, "<"),
+      BinOpType::LessEqual => write!(f, "<="),
+      BinOpType::Greater => write!(f, ">"),
+      BinOpType::GreaterEqual => write!(f, ">="),
+      BinOpType::LogicalOr => write!(f, "||"),
+      BinOpType::LogicalAnd => write!(f, "&&"),
+      _ => panic!("curretly not support"),
     }
   }
 }
