@@ -16,11 +16,11 @@ impl Function {
   pub fn new(func: &Rc<RefCell<SymTabEntry>>) -> Function {
     Function {
       name: func.borrow().get_name(),
-      ret_ty: IRBuilder::change_language_ty_to_data_ty(func.borrow().get_return_type()),
+      ret_ty: DataTy::from(func.borrow().get_return_type()),
       arg_ty: func.borrow()
                       .get_prototype()
                       .iter()
-                      .map(|&ty| IRBuilder::change_language_ty_to_data_ty(ty))
+                      .map(|&ty| DataTy::from(ty))
                       .collect(),
       bb_list: vec![],
     }

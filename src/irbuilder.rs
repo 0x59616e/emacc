@@ -27,13 +27,6 @@ impl IRBuilder {
     }
   }
 
-  pub fn change_language_ty_to_data_ty(ty: Type) -> DataTy {
-    match ty {
-      Type::Int => DataTy::I32,
-      _ => panic!("only int suppported, found: {:?}", ty),
-    }
-  }
-
   pub fn run(mut self, node: TranslationUnit) -> Module {
     node.emit_ir(&mut self);
     self.module
@@ -51,7 +44,7 @@ impl IRBuilder {
     self.leave_func_scope();
   }
   pub fn gen_new_vreg(&mut self, ty: Type) -> Rc<RefCell<Value>> {
-    Rc::new(RefCell::new(Value::new_register(self.gen_new_num(), IRBuilder::change_language_ty_to_data_ty(ty))))
+    Rc::new(RefCell::new(Value::new_register(self.gen_new_num(), DataTy::from(ty))))
   }
 
   pub fn gen_new_vreg_with_data_ty(&mut self, ty: DataTy) -> Rc<RefCell<Value>> {

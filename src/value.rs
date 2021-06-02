@@ -1,4 +1,5 @@
 use crate::instruction::Instruction;
+use crate::symtab::Type;
 use std::fmt;
 use std::rc::Rc;
 
@@ -6,6 +7,15 @@ use std::rc::Rc;
 pub enum DataTy {
   I1,
   I32,
+}
+
+impl From<Type> for DataTy {
+  fn from(ty: Type) -> DataTy {
+    match ty {
+      Type::Int => DataTy::I32,
+      _ => panic!("only int suppported, found: {:?}", ty),
+    }
+  }
 }
 
 impl fmt::Display for DataTy {
