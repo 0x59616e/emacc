@@ -78,8 +78,8 @@ impl Stmt for FunctionDef {
     irbuilder.enter_new_func_scope(&self.func_prototype);
 
     // Generate virtual register for function parameter.
-    for parm in self.param_list() {
-      irbuilder.gen_new_vreg(parm.borrow().get_type());
+    for param in self.param_list() {
+      irbuilder.gen_new_vreg(param.borrow().get_type());
     }
 
     irbuilder.enter_new_basicblock_scope();
