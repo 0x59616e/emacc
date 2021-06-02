@@ -7,12 +7,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 pub trait Stmt {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder);
+  fn emit_ir(&self, irbuilder: &mut IRBuilder);
   fn print_ast(&self, prefix: String);
 }
 
 pub trait Expr {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder) -> Option<Value>;
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) -> Option<Value>;
   fn get_address(&self) -> Option<Value> {
     // only valid for `Var`
     None
@@ -26,9 +26,9 @@ pub struct TranslationUnit {
 }
 
 impl Stmt for TranslationUnit {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder) {
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) {
     for func in self.func_or_decl_list.iter() {
-      func.emit_ir(ir_builder);
+      func.emit_ir(irbuilder);
     }
   }
 
@@ -74,37 +74,37 @@ impl FunctionDef {
 }
 
 impl Stmt for FunctionDef {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder) {
-    ir_builder.enter_new_func_scope(&self.func_prototype);
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) {
+    irbuilder.enter_new_func_scope(&self.func_prototype);
 
     // Generate virtual register for function parameter.
     for parm in self.param_list() {
-      ir_builder.gen_new_vreg(parm.borrow().get_type());
+      irbuilder.gen_new_vreg(parm.borrow().get_type());
     }
 
-    ir_builder.enter_new_basicblock_scope();
+    irbuilder.enter_new_basicblock_scope();
 
     // Generate alloca instruction for all local variable.
     for var in self.local_var_list().map(|(_, var)| var) {
-      let inst = ir_builder.gen_alloca_inst(var.borrow().get_type());
+      let inst = irbuilder.gen_alloca_inst(var.borrow().get_type());
       {
         var.borrow_mut().set_address(inst.get_address().unwrap());
       }
-      ir_builder.insert_inst(inst);
+      irbuilder.insert_inst(inst);
     }
 
     // generate store instruction for function parameter
     for (src_reg, param) in self.param_list()
                                 .enumerate()
                                 .map(|(reg_num, param)|
-                                    (ir_builder.gen_vreg(reg_num, param.borrow().get_type()), param)) {
-      let inst = ir_builder.gen_store_inst(src_reg, param.borrow().get_address().unwrap());
-      ir_builder.insert_inst(inst);
+                                    (irbuilder.gen_vreg(reg_num, param.borrow().get_type()), param)) {
+      let inst = irbuilder.gen_store_inst(src_reg, param.borrow().get_address().unwrap());
+      irbuilder.insert_inst(inst);
     }
 
     // then, we can emit ir
-    self.body.emit_ir(ir_builder);
-    ir_builder.reset();
+    self.body.emit_ir(irbuilder);
+    irbuilder.reset();
   }
 
   fn print_ast(&self, mut prefix: String) {
@@ -121,9 +121,9 @@ pub struct CompoundStmt {
 }
 
 impl Stmt for CompoundStmt {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder) {
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) {
     for stmt in self.body.iter() {
-      stmt.emit_ir(ir_builder);
+      stmt.emit_ir(irbuilder);
     }
   }
 
@@ -170,13 +170,13 @@ pub struct VarDeclStmt {
 }
 
 impl Stmt for VarDeclStmt {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder) {
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) {
     if let Some(initializer) = &self.init {
-      let src = initializer.init_expr.emit_ir(ir_builder).expect("No Value");
+      let src = initializer.init_expr.emit_ir(irbuilder).expect("No Value");
       let dest = self.object.borrow().get_address()
                                     .expect("There should've been an address");
-      let inst = ir_builder.gen_store_inst(src, dest);
-      ir_builder.insert_inst(inst);
+      let inst = irbuilder.gen_store_inst(src, dest);
+      irbuilder.insert_inst(inst);
       // That's it
     }
   }
@@ -208,45 +208,45 @@ impl IfStmt {
 }
 
 impl Stmt for IfStmt {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder) {
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) {
     // First, evaluate the conditional expression
-    let src = self.cond_expr.emit_ir(ir_builder).expect("No Value");
+    let src = self.cond_expr.emit_ir(irbuilder).expect("No Value");
     
-    let then_block = ir_builder.gen_new_basicblock();
-    let cont_block = ir_builder.gen_new_basicblock();
+    let then_block = irbuilder.gen_new_basicblock();
+    let cont_block = irbuilder.gen_new_basicblock();
     let else_block = if self.has_else() {
-      ir_builder.gen_new_basicblock()
+      irbuilder.gen_new_basicblock()
     } else {
       Rc::clone(&cont_block)
     };
 
-    let br_inst = ir_builder.gen_condi_br_inst(src,
+    let br_inst = irbuilder.gen_condi_br_inst(src,
                                                &then_block,
                                                &else_block);
-    ir_builder.insert_inst(br_inst);
+    irbuilder.insert_inst(br_inst);
 
-    let curr_bb = ir_builder.get_curr_bb();
+    let curr_bb = irbuilder.get_curr_bb();
 
-    ir_builder.enter_basicblock_scope(Rc::clone(&then_block));
-    self.then_stmt.emit_ir(ir_builder);
+    irbuilder.enter_basicblock_scope(Rc::clone(&then_block));
+    self.then_stmt.emit_ir(irbuilder);
 
     if !then_block.borrow().is_terminate() {
-      let br_inst = ir_builder.gen_uncondi_br_inst(&cont_block);
-      ir_builder.insert_inst(br_inst);
+      let br_inst = irbuilder.gen_uncondi_br_inst(&cont_block);
+      irbuilder.insert_inst(br_inst);
     }
 
     if self.has_else() {
-      ir_builder.enter_basicblock_scope(Rc::clone(&else_block));
-      self.else_stmt.as_ref().unwrap().emit_ir(ir_builder);
+      irbuilder.enter_basicblock_scope(Rc::clone(&else_block));
+      self.else_stmt.as_ref().unwrap().emit_ir(irbuilder);
 
       if !else_block.borrow().is_terminate() {
-        let br_inst = ir_builder.gen_uncondi_br_inst(&cont_block);
-        ir_builder.insert_inst(br_inst);
+        let br_inst = irbuilder.gen_uncondi_br_inst(&cont_block);
+        irbuilder.insert_inst(br_inst);
       }
     }
 
     // let's keep on our journey...
-    ir_builder.enter_basicblock_scope(cont_block);
+    irbuilder.enter_basicblock_scope(cont_block);
   }
 
   fn print_ast(&self, prefix: String) {
@@ -276,8 +276,8 @@ pub struct ExprStmt {
 }
 
 impl Stmt for ExprStmt {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder) {
-    self.expr.emit_ir(ir_builder);
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) {
+    self.expr.emit_ir(irbuilder);
   }
 
   fn print_ast(&self, prefix: String) {
@@ -290,16 +290,16 @@ pub struct ReturnStmt {
 }
 
 impl Stmt for ReturnStmt {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder) {
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) {
     let inst = if let Some(expr) = &self.expr {
-      let retval = expr.emit_ir(ir_builder).expect("No Value");
-      ir_builder.gen_ret_inst_with_retval(retval)
+      let retval = expr.emit_ir(irbuilder).expect("No Value");
+      irbuilder.gen_ret_inst_with_retval(retval)
     } else {
-      ir_builder.gen_ret_inst_with_no_retval()
+      irbuilder.gen_ret_inst_with_no_retval()
     };
 
-    ir_builder.insert_inst(inst);
-    ir_builder.leave_basicblock_scope();
+    irbuilder.insert_inst(inst);
+    irbuilder.leave_basicblock_scope();
   }
 
   fn print_ast(&self, mut prefix: String) {
@@ -318,14 +318,14 @@ pub struct CallExpr {
 }
 
 impl Expr for CallExpr {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder) -> Option<Value> {
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) -> Option<Value> {
     let arg_list: Vec<Value> = self.arg_list
                                     .iter()
-                                    .map(|expr| expr.emit_ir(ir_builder).expect("No Value"))
+                                    .map(|expr| expr.emit_ir(irbuilder).expect("No Value"))
                                     .collect();
 
-    let (dest, inst) = ir_builder.gen_call_inst(&self.func, arg_list);
-    ir_builder.insert_inst(inst);
+    let (dest, inst) = irbuilder.gen_call_inst(&self.func, arg_list);
+    irbuilder.insert_inst(inst);
     dest
   }
 
@@ -388,63 +388,62 @@ impl BinOpExpr {
 }
 
 impl Expr for BinOpExpr {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder) -> Option<Value> {
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) -> Option<Value> {
     if self.is_op_comma() {
-      self.lhs.emit_ir(ir_builder);
-      self.rhs.emit_ir(ir_builder);
+      self.lhs.emit_ir(irbuilder);
+      self.rhs.emit_ir(irbuilder);
       return None;
     } else if self.is_op_assignment() {
       let dest = self.lhs.get_address().expect("No Address");
-      let src = self.rhs.emit_ir(ir_builder).expect("No Value");
-      let inst = ir_builder.gen_store_inst(src, dest);
-      ir_builder.insert_inst(inst);
+      let src = self.rhs.emit_ir(irbuilder).expect("No Value");
+      let inst = irbuilder.gen_store_inst(src, dest);
+      irbuilder.insert_inst(inst);
       return Some(dest);
     } else if self.is_op_logical() {
       // Oh No...
-      let block0 = ir_builder.get_curr_bb();
-      let block1 = ir_builder.gen_new_basicblock();
-      let block2 = ir_builder.gen_new_basicblock();
+      let block1 = irbuilder.gen_new_basicblock();
+      let block2 = irbuilder.gen_new_basicblock();
 
-      let src1 = self.lhs.emit_ir(ir_builder).expect("No Value");
-
+      let src1 = self.lhs.emit_ir(irbuilder).expect("No Value");
+      let block0 = irbuilder.get_curr_bb();
+  
       let inst = if self.is_op_logical_or() {
-        ir_builder.gen_condi_br_inst(src1, &block2, &block1)
+        irbuilder.gen_condi_br_inst(src1, &block2, &block1)
       } else {
-        ir_builder.gen_condi_br_inst(src1, &block1, &block2)
+        irbuilder.gen_condi_br_inst(src1, &block1, &block2)
       };
-      ir_builder.insert_inst(inst);
+      irbuilder.insert_inst(inst);
 
-      ir_builder.enter_basicblock_scope(Rc::clone(&block1));
-      let src2 = self.rhs.emit_ir(ir_builder).expect("No Value");
-      let inst = ir_builder.gen_uncondi_br_inst(&block2);
-      ir_builder.insert_inst(inst);
+      irbuilder.enter_basicblock_scope(Rc::clone(&block1));
+      let src2 = self.rhs.emit_ir(irbuilder).expect("No Value");
+      let block1 = irbuilder.get_curr_bb();
+      let inst = irbuilder.gen_uncondi_br_inst(&block2);
+      irbuilder.insert_inst(inst);
 
+      irbuilder.enter_basicblock_scope(Rc::clone(&block2));
 
-      let block1 = ir_builder.get_curr_bb();
-      ir_builder.enter_basicblock_scope(Rc::clone(&block2));
-
-      let dest = ir_builder.gen_new_vreg_with_data_ty(src1.get_data_ty());
-      let src1 = ir_builder.gen_i1_const(self.is_op_logical_or());
-      let inst = ir_builder.gen_phi_inst(
+      let src1 = irbuilder.gen_i1_const(self.is_op_logical_or());
+      let dest = irbuilder.gen_new_vreg_with_data_ty(src1.get_data_ty());
+      let inst = irbuilder.gen_phi_inst(
         dest,
         vec![
               (src1, block0.borrow().get_label()),
               (src2, block1.borrow().get_label())
             ]
       );
-      ir_builder.insert_inst(inst);
+      irbuilder.insert_inst(inst);
       Some(dest)
     } else {
-      let src1 = self.lhs.emit_ir(ir_builder).expect("No Value");
-      let src2 = self.rhs.emit_ir(ir_builder).expect("No Value");
-      let dest = ir_builder.gen_new_vreg_with_data_ty(src1.get_data_ty());
+      let src1 = self.lhs.emit_ir(irbuilder).expect("No Value");
+      let src2 = self.rhs.emit_ir(irbuilder).expect("No Value");
+      let dest = irbuilder.gen_new_vreg_with_data_ty(src1.get_data_ty());
       // cmp instruction
       let inst = if self.is_op_relational() {
-        ir_builder.gen_cmp_inst(src1, src2, dest, self.op)
+        irbuilder.gen_cmp_inst(src1, src2, dest, self.op)
       } else {
-        ir_builder.gen_binary_inst(src1, src2, dest, self.op)
+        irbuilder.gen_binary_inst(src1, src2, dest, self.op)
       };
-      ir_builder.insert_inst(inst);
+      irbuilder.insert_inst(inst);
       return Some(dest);
     }
   }
@@ -467,8 +466,8 @@ pub struct Constant {
 }
 
 impl Expr for Constant {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder) -> Option<Value> {
-    Some(ir_builder.gen_i32_const(self.value))
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) -> Option<Value> {
+    Some(irbuilder.gen_i32_const(self.value))
   }
 
   fn print_ast(&self, _prefix: String) {
@@ -481,11 +480,11 @@ pub struct Var {
 }
 
 impl Expr for Var {
-  fn emit_ir(&self, ir_builder: &mut IRBuilder) -> Option<Value> {
-    let dest = ir_builder.gen_new_vreg(self.object.borrow().get_type());
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) -> Option<Value> {
+    let dest = irbuilder.gen_new_vreg(self.object.borrow().get_type());
     let src = self.object.borrow().get_address().expect("No Address");
-    let inst = ir_builder.gen_load_inst(src, dest);
-    ir_builder.insert_inst(inst);
+    let inst = irbuilder.gen_load_inst(src, dest);
+    irbuilder.insert_inst(inst);
     Some(dest)
   }
 
