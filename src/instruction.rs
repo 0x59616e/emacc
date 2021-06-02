@@ -6,7 +6,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 
 pub trait Inst {
-  fn get_address(&self) -> Option<Value> {
+  fn get_address(&self) -> Option<Rc<RefCell<Value>>> {
     None
   }
 
@@ -20,16 +20,16 @@ pub trait Inst {
 // allocate an address on stack, store that address into %{dest}
 // %{dest} = alloca i32, align 4
 pub struct AllocaInst {
-  dest: Value,
+  dest: Rc<RefCell<Value>>,
 }
 
 impl Inst for AllocaInst {
   fn print(&self) {
-    println!("{} = alloca {}", self.dest, self.dest.get_data_ty())
+    println!("{} = alloca {}", self.dest.borrow(), self.dest.borrow().get_data_ty())
   }
 
-  fn get_address(&self) -> Option<Value> {
-    Some(self.dest)
+  fn get_address(&self) -> Option<Rc<RefCell<Value>>> {
+    Some(Rc::clone(&self.dest))
   }
 }
 
@@ -38,58 +38,58 @@ impl Inst for AllocaInst {
 // store the Value's value or constant to memory
 // store i32 (%{src} | const), i32* %{dest}, align 4
 pub struct StoreInst {
-  src : Value,
-  dest: Value,
+  src : Rc<RefCell<Value>>,
+  dest: Rc<RefCell<Value>>,
 }
 
 impl Inst for StoreInst {
   fn print(&self) {
-    println!("store {} {}, {}* {}", self.src.get_data_ty(),
-                                    self.src,
-                                    self.dest.get_data_ty(),
-                                    self.dest);
+    println!("store {} {}, {}* {}", self.src.borrow().get_data_ty(),
+                                    self.src.borrow(),
+                                    self.dest.borrow().get_data_ty(),
+                                    self.dest.borrow());
   }
 
-  fn get_address(&self) -> Option<Value> {
-    Some(self.dest)
+  fn get_address(&self) -> Option<Rc<RefCell<Value>>> {
+    Some(Rc::clone(&self.dest))
   }
 }
 
 // memory to reister
 // %{dest} = load i32, i32* %{src}, align 4
 pub struct LoadInst {
-  src : Value,
-  dest: Value,
+  src : Rc<RefCell<Value>>,
+  dest: Rc<RefCell<Value>>,
 }
 
 impl Inst for LoadInst {
   fn print(&self) {
-    println!("{} = load {}, {}* {}",self.dest,
-                                    self.dest.get_data_ty(),
-                                    self.src.get_data_ty(),
-                                    self.src)
+    println!("{} = load {}, {}* {}",self.dest.borrow(),
+                                    self.dest.borrow().get_data_ty(),
+                                    self.src.borrow().get_data_ty(),
+                                    self.src.borrow())
   }
-  fn get_address(&self) -> Option<Value> {
-    Some(self.src)
+  fn get_address(&self) -> Option<Rc<RefCell<Value>>> {
+    Some(Rc::clone(&self.src))
   }
 }
 
 pub struct BranchInst {
   condi_br: bool,
-  src: Option<Value>,
-  true_bb_label: Value,
-  false_bb_label: Option<Value>,
+  src: Option<Rc<RefCell<Value>>>,
+  true_bb_label: Rc<RefCell<Value>>,
+  false_bb_label: Option<Rc<RefCell<Value>>>,
 }
 
 impl Inst for BranchInst {
   fn print(&self) {
     print!("br ");
-    if let Some(src) = self.src {
-      print!("{} {}, ", src.get_data_ty(), src);
+    if let Some(src) = &self.src {
+      print!("{} {}, ", src.borrow().get_data_ty(), src.borrow());
     }
-    print!("label {}", self.true_bb_label);
-    if let Some(false_bb_label) = self.false_bb_label {
-      print!(", label {}", false_bb_label);
+    print!("label {}", self.true_bb_label.borrow());
+    if let Some(false_bb_label) = &self.false_bb_label {
+      print!(", label {}", false_bb_label.borrow());
     }
     println!("");
   }
@@ -100,14 +100,14 @@ impl Inst for BranchInst {
 }
 
 pub struct ReturnInst {
-  retval: Option<Value>,
+  retval: Option<Rc<RefCell<Value>>>,
 }
 
 impl Inst for ReturnInst {
   fn print(&self) {
     print!("ret");
-    if let Some(retval) = self.retval {
-      println!(" {} {}", retval.get_data_ty(), retval);
+    if let Some(retval) = &self.retval {
+      println!(" {} {}", retval.borrow().get_data_ty(), retval.borrow());
     } else {
       println!("");
     }
@@ -146,18 +146,18 @@ impl fmt::Display for CmpTy {
 // dest = icmp ty op1, op2
 pub struct CmpInst {
   ty: CmpTy,
-  dest: Value,
-  op1: Value,
-  op2: Value,
+  dest: Rc<RefCell<Value>>,
+  op1: Rc<RefCell<Value>>,
+  op2: Rc<RefCell<Value>>,
 }
 
 impl Inst for CmpInst {
   fn print(&self) {
-    println!("{} = cmp {} {}, {}, {}",self.dest,
+    println!("{} = cmp {} {}, {}, {}",self.dest.borrow(),
                                       self.ty,
-                                      self.dest.get_data_ty(),
-                                      self.op1,
-                                      self.op2);
+                                      self.dest.borrow().get_data_ty(),
+                                      self.op1.borrow(),
+                                      self.op2.borrow());
   }
 }
 
@@ -191,36 +191,36 @@ impl fmt::Display for BinaryInstTy {
 
 pub struct BinaryInst {
   ty: BinaryInstTy,
-  dest: Value,
-  src1: Value,
-  src2: Value,
+  dest: Rc<RefCell<Value>>,
+  src1: Rc<RefCell<Value>>,
+  src2: Rc<RefCell<Value>>,
 }
 
 impl Inst for BinaryInst {
   fn print(&self) {
-    println!("{} = {} {} {}, {}", self.dest,
+    println!("{} = {} {} {}, {}", self.dest.borrow(),
                                   self.ty,
-                                  self.dest.get_data_ty(),
-                                  self.src1,
-                                  self.src2);
+                                  self.dest.borrow().get_data_ty(),
+                                  self.src1.borrow(),
+                                  self.src2.borrow());
   }
 }
 
 pub struct CallInst {
-  dest: Option<Value>, // return value
+  dest: Option<Rc<RefCell<Value>>>, // return value
   func_name: String, // function name
-  arg_list: Vec<Value>,
+  arg_list: Vec<Rc<RefCell<Value>>>,
 }
 
 impl Inst for CallInst {
   fn print(&self) {
-    if let Some(dest) = self.dest {
-      print!("{} = ", dest);
+    if let Some(dest) = &self.dest {
+      print!("{} = ", dest.borrow());
     }
-    print!("call {} @{}(",self.dest.unwrap().get_data_ty(),
+    print!("call {} @{}(", self.dest.as_ref().unwrap().borrow().get_data_ty(),
                             self.func_name);
     for (i, arg) in self.arg_list.iter().enumerate() {
-      print!("{} {}", arg.get_data_ty(), arg);
+      print!("{} {}", arg.borrow().get_data_ty(), arg.borrow());
       if i != self.arg_list.len() - 1 {
         print!(", ");
       }
@@ -231,16 +231,16 @@ impl Inst for CallInst {
 
 
 pub struct PHIInst {
-  dest: Value,
+  dest: Rc<RefCell<Value>>,
   // (value, label)
-  pair: Vec<(Value, Value)>,
+  pair: Vec<(Rc<RefCell<Value>>, Rc<RefCell<Value>>)>,
 }
 
 impl Inst for PHIInst {
   fn print(&self) {
-    print!("{} = phi {}, ", self.dest, self.dest.get_data_ty());
+    print!("{} = phi {}, ", self.dest.borrow(), self.dest.borrow().get_data_ty());
     for (i, (value, label)) in self.pair.iter().enumerate() {
-      print!("[{} {}]", value, label);
+      print!("[{} {}]", value.borrow(), label.borrow());
       if i != self.pair.len() - 1 {
         print!(", ");
       }
@@ -256,8 +256,8 @@ pub struct Instruction {
 
 impl Instruction {
   pub fn gen_phi_inst(
-    dest: Value,
-    pair: Vec<(Value, Value)>,
+    dest: Rc<RefCell<Value>>,
+    pair: Vec<(Rc<RefCell<Value>>, Rc<RefCell<Value>>)>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
@@ -273,9 +273,9 @@ impl Instruction {
   }
 
   pub fn gen_call_inst(
-    dest: Option<Value>,
+    dest: Option<Rc<RefCell<Value>>>,
     func_name: String,
-    arg_list: Vec<Value>,
+    arg_list: Vec<Rc<RefCell<Value>>>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
@@ -291,7 +291,7 @@ impl Instruction {
     }
   }
   pub fn gen_alloca_inst(
-    dest: Value,
+    dest: Rc<RefCell<Value>>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
@@ -306,8 +306,8 @@ impl Instruction {
   }
 
   pub fn gen_store_inst(
-    src: Value,
-    dest: Value,
+    src: Rc<RefCell<Value>>,
+    dest: Rc<RefCell<Value>>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
@@ -323,8 +323,8 @@ impl Instruction {
   }
 
   pub fn gen_load_inst(
-    src: Value,
-    dest: Value,
+    src: Rc<RefCell<Value>>,
+    dest: Rc<RefCell<Value>>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
@@ -340,9 +340,9 @@ impl Instruction {
   }
 
   pub fn gen_binary_inst(
-    src1: Value,
-    src2: Value,
-    dest: Value,
+    src1: Rc<RefCell<Value>>,
+    src2: Rc<RefCell<Value>>,
+    dest: Rc<RefCell<Value>>,
     ty: BinaryInstTy,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
@@ -360,9 +360,9 @@ impl Instruction {
     }
   }
   pub fn gen_cmp_inst(
-    op1: Value,
-    op2: Value,
-    dest: Value,
+    op1: Rc<RefCell<Value>>,
+    op2: Rc<RefCell<Value>>,
+    dest: Rc<RefCell<Value>>,
     ty: CmpTy,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
@@ -382,9 +382,9 @@ impl Instruction {
 
   pub fn gen_br_inst(
     condi_br: bool,
-    src: Option<Value>,
-    true_bb_label: Value,
-    false_bb_label: Option<Value>,
+    src: Option<Rc<RefCell<Value>>>,
+    true_bb_label: Rc<RefCell<Value>>,
+    false_bb_label: Option<Rc<RefCell<Value>>>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
@@ -400,7 +400,7 @@ impl Instruction {
   }
 
   pub fn gen_ret_inst(
-    retval: Option<Value>,
+    retval: Option<Rc<RefCell<Value>>>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction 
   {

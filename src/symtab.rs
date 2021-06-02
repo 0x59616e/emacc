@@ -19,7 +19,7 @@ pub struct SymTabEntry {
   pub entry_type: Type,
   pub scope_id: Option<ScopeID>,
   pub is_parm: Option<usize>,
-  pub addr: Option<Value>,
+  pub addr: Option<Rc<RefCell<Value>>>,
   // function
   pub return_type: Option<Type>,
   pub prototype: Option<Vec<Type>>,
@@ -38,8 +38,8 @@ impl SymTabEntry {
     self.prototype.as_ref().expect("No prototype")
   }
 
-  pub fn get_address(&self) -> Option<Value> {
-    self.addr
+  pub fn get_address(&self) -> Option<Rc<RefCell<Value>>> {
+    if let None = self.addr {None} else {Some(Rc::clone(self.addr.as_ref().unwrap()))}
   }
 
   pub fn get_return_type(&self) -> Type {
@@ -67,8 +67,8 @@ impl SymTabEntry {
     self.prototype = Some(prototype);
   }
 
-  pub fn set_address(&mut self, dest: Value) {
-    self.addr = Some(dest);
+  pub fn set_address(&mut self, dest: &Rc<RefCell<Value>>) {
+    self.addr = Some(Rc::clone(dest));
   }
 }
 

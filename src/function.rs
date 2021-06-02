@@ -1,17 +1,15 @@
 use crate::basicblock::*;
 use crate::irbuilder::IRBuilder;
 use crate::symtab::SymTabEntry;
-use crate::value::{Value, DataTy};
+use crate::value::{DataTy};
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 pub struct Function {
   name: String,
   ret_ty: DataTy,
   arg_ty: Vec<DataTy>,
   bb_list: Vec<Rc<RefCell<BasicBlock>>>,
-  bb_map: HashMap<Value, Rc<RefCell<BasicBlock>>>,
 }
 
 impl Function {
@@ -25,7 +23,6 @@ impl Function {
                       .map(|&ty| IRBuilder::change_language_ty_to_data_ty(ty))
                       .collect(),
       bb_list: vec![],
-      bb_map: HashMap::new()
     }
   }
 
@@ -45,8 +42,6 @@ impl Function {
   }
 
   pub fn insert(&mut self, bb: Rc<RefCell<BasicBlock>>) {
-    let label = bb.borrow().get_label();
-    self.bb_map.insert(label, Rc::clone(&bb));
     self.bb_list.push(bb);
   }
 }
