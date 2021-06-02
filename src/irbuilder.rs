@@ -58,10 +58,6 @@ impl IRBuilder {
     Rc::new(RefCell::new(Value::new_register(self.gen_new_num(), ty)))
   }
 
-  pub fn gen_vreg(&self, reg_num: usize, ty: Type) -> Rc<RefCell<Value>> {
-    Rc::new(RefCell::new(Value::new_register(reg_num, IRBuilder::change_language_ty_to_data_ty(ty))))
-  }
-
   pub fn gen_i32_const(&self, value: i32) -> Rc<RefCell<Value>> {
     Rc::new(RefCell::new(Value::new_const_i32(value)))
   }
