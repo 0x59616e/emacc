@@ -153,7 +153,7 @@ impl Parser {
           }));
 
           if let None = self.consume_token(TokenKind::Comma) {
-            self.consume_token(TokenKind::Semicolon);
+            self.consume_token(TokenKind::Semicolon).expect("Expect ';'");
             break;
           }
         } else {

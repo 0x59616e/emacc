@@ -394,7 +394,7 @@ impl Expr for BinOpExpr {
       let src = self.rhs.emit_ir(irbuilder).expect("No Value");
       let inst = irbuilder.new_store_inst(&src, &dest);
       irbuilder.insert_inst(inst);
-      return Some(dest);
+      return Some(src);
     } else if self.is_op_logical() {
       // Oh No...
       let block1 = irbuilder.new_basicblock();

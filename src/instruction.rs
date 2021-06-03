@@ -224,7 +224,7 @@ pub struct BinaryInst {
 
 impl Inst for BinaryInst {
   fn print(&self) {
-    println!("{} = {} {} {}, {}", self.dest.borrow(),
+    println!("{} = {} {}, {}, {}", self.dest.borrow(),
                                   self.ty,
                                   self.dest.borrow().get_data_ty(),
                                   self.src1.borrow(),
