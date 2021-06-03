@@ -32,7 +32,7 @@ impl IRBuilder {
     self.module
   }
 
-  fn gen_new_num(&mut self) -> usize {
+  fn new_num(&mut self) -> usize {
     let result = self.next_vreg;
     self.next_vreg += 1;
     result
@@ -44,73 +44,73 @@ impl IRBuilder {
     self.leave_func_scope();
   }
 
-  pub fn gen_new_vreg(&mut self, ty: Type) -> Rc<RefCell<Value>> {
-    Rc::new(RefCell::new(Value::new_register(self.gen_new_num(), DataTy::from(ty))))
+  pub fn new_vreg(&mut self, ty: Type) -> Rc<RefCell<Value>> {
+    Rc::new(RefCell::new(Value::new_register(self.new_num(), DataTy::from(ty))))
   }
 
-  pub fn gen_new_vreg_with_data_ty(&mut self, ty: DataTy) -> Rc<RefCell<Value>> {
-    Rc::new(RefCell::new(Value::new_register(self.gen_new_num(), ty)))
+  pub fn new_vreg_with_data_ty(&mut self, ty: DataTy) -> Rc<RefCell<Value>> {
+    Rc::new(RefCell::new(Value::new_register(self.new_num(), ty)))
   }
 
-  pub fn gen_i32_const(&self, value: i32) -> Rc<RefCell<Value>> {
+  pub fn new_const_i32(&self, value: i32) -> Rc<RefCell<Value>> {
     Rc::new(RefCell::new(Value::new_const_i32(value)))
   }
 
-  pub fn gen_i1_const(&self, value: bool) -> Rc<RefCell<Value>> {
+  pub fn new_const_i1(&self, value: bool) -> Rc<RefCell<Value>> {
     Rc::new(RefCell::new(Value::new_const_i1(value)))
   }
 
-  pub fn gen_phi_inst(
+  pub fn new_phi_inst(
     &self,
     dest: &Rc<RefCell<Value>>,
     pair: Vec<(Rc<RefCell<Value>>, Value)>
   ) -> Instruction {
-    Instruction::gen_phi_inst(Rc::clone(dest), pair, self.get_curr_bb())
+    Instruction::new_phi_inst(Rc::clone(dest), pair, self.get_curr_bb())
   }
 
-  pub fn gen_call_inst(
+  pub fn new_call_inst(
     &mut self,
     func: &Rc<RefCell<SymTabEntry>>,
     arg_list: Vec<Rc<RefCell<Value>>>
   ) -> (Option<Rc<RefCell<Value>>>, Instruction)
   {
     match func.borrow().get_return_type() {
-      Type::Void => (None, self.gen_call_inst_with_no_retval(func.borrow().get_name(), arg_list)),
+      Type::Void => (None, self.new_call_inst_with_no_retval(func.borrow().get_name(), arg_list)),
       _ => {
-        let dest = self.gen_new_vreg(func.borrow().get_return_type());
-        (Some(Rc::clone(&dest)), self.gen_call_inst_with_retval(&dest, func.borrow().get_name(), arg_list))
+        let dest = self.new_vreg(func.borrow().get_return_type());
+        (Some(Rc::clone(&dest)), self.new_call_inst_with_retval(&dest, func.borrow().get_name(), arg_list))
       }
     }
   }
 
-  pub fn gen_call_inst_with_retval(
+  pub fn new_call_inst_with_retval(
     &self,
     dest: &Rc<RefCell<Value>>,
     func_name: String,
     arg_list: Vec<Rc<RefCell<Value>>>
   ) -> Instruction
   {
-    Instruction::gen_call_inst(Some(Rc::clone(dest)), func_name, arg_list, self.get_curr_bb())
+    Instruction::new_call_inst(Some(Rc::clone(dest)), func_name, arg_list, self.get_curr_bb())
   }
 
-  pub fn gen_call_inst_with_no_retval(
+  pub fn new_call_inst_with_no_retval(
     &self,
     func_name: String,
     arg_list: Vec<Rc<RefCell<Value>>>
   ) -> Instruction
   {
-    Instruction::gen_call_inst(None, func_name, arg_list, self.get_curr_bb())
+    Instruction::new_call_inst(None, func_name, arg_list, self.get_curr_bb())
   }
 
-  pub fn gen_ret_inst_with_retval(&self, retval: &Rc<RefCell<Value>>) -> Instruction {
-    Instruction::gen_ret_inst(Some(Rc::clone(retval)), self.get_curr_bb())
+  pub fn new_ret_inst_with_retval(&self, retval: &Rc<RefCell<Value>>) -> Instruction {
+    Instruction::new_ret_inst(Some(Rc::clone(retval)), self.get_curr_bb())
   }
 
-  pub fn gen_ret_inst_with_no_retval(&self) -> Instruction {
-    Instruction::gen_ret_inst(None, self.get_curr_bb())
+  pub fn new_ret_inst_with_no_retval(&self) -> Instruction {
+    Instruction::new_ret_inst(None, self.get_curr_bb())
   }
 
-  pub fn gen_binary_inst(
+  pub fn new_binary_inst(
     &self,
     src1: &Rc<RefCell<Value>>,
     src2: &Rc<RefCell<Value>>,
@@ -119,9 +119,9 @@ impl IRBuilder {
   ) -> Instruction
   {
     let ty = BinaryInstTy::from(binop);
-    Instruction::gen_binary_inst(Rc::clone(src1), Rc::clone(src2), Rc::clone(dest), ty, self.get_curr_bb())
+    Instruction::new_binary_inst(Rc::clone(src1), Rc::clone(src2), Rc::clone(dest), ty, self.get_curr_bb())
   }
-  pub fn gen_cmp_inst(
+  pub fn new_cmp_inst(
     &self,
     src1: &Rc<RefCell<Value>>,
     src2: &Rc<RefCell<Value>>,
@@ -130,10 +130,10 @@ impl IRBuilder {
   ) -> Instruction
   {
     let ty = CmpTy::from(binop);
-    Instruction::gen_cmp_inst(Rc::clone(src1), Rc::clone(src2), Rc::clone(dest), ty, self.get_curr_bb())
+    Instruction::new_cmp_inst(Rc::clone(src1), Rc::clone(src2), Rc::clone(dest), ty, self.get_curr_bb())
   }
 
-  fn gen_br_inst(
+  fn new_br_inst(
     &self,
     condi_br: bool,
     src: Option<Rc<RefCell<Value>>>,
@@ -141,7 +141,7 @@ impl IRBuilder {
     false_bb_label: Option<Value>,
   ) -> Instruction 
   {
-    Instruction::gen_br_inst(
+    Instruction::new_br_inst(
       condi_br,
       src,
       true_bb_label,
@@ -150,7 +150,7 @@ impl IRBuilder {
     )
   }
 
-  pub fn gen_condi_br_inst(
+  pub fn new_condi_br_inst(
     &self,
     src: &Rc<RefCell<Value>>,
     true_bb: &Rc<RefCell<BasicBlock>>,
@@ -160,7 +160,7 @@ impl IRBuilder {
     let bb = self.get_curr_bb();
     self.construct_edge_between_bb(&bb, true_bb);
     self.construct_edge_between_bb(&bb, false_bb);
-    self.gen_br_inst(
+    self.new_br_inst(
       true,
       Some(Rc::clone(src)),
       true_bb.borrow().get_label(),
@@ -168,28 +168,28 @@ impl IRBuilder {
     )
   }
 
-  pub fn gen_uncondi_br_inst(&self, dest: &Rc<RefCell<BasicBlock>>) -> Instruction {
+  pub fn new_uncondi_br_inst(&self, dest: &Rc<RefCell<BasicBlock>>) -> Instruction {
     let bb = self.get_curr_bb();
     self.construct_edge_between_bb(&bb, dest);
-    self.gen_br_inst(false, None, dest.borrow().get_label(), None)
+    self.new_br_inst(false, None, dest.borrow().get_label(), None)
   }
 
-  pub fn gen_store_inst(
+  pub fn new_store_inst(
     &self,
     src: &Rc<RefCell<Value>>,
     dest: &Rc<RefCell<Value>>
   ) -> Instruction
   {
-    Instruction::gen_store_inst(Rc::clone(src), Rc::clone(dest), self.get_curr_bb())
+    Instruction::new_store_inst(Rc::clone(src), Rc::clone(dest), self.get_curr_bb())
   }
 
-  pub fn gen_load_inst(&self, src: &Rc<RefCell<Value>>, dest: &Rc<RefCell<Value>>) -> Instruction {
-    Instruction::gen_load_inst(Rc::clone(src), Rc::clone(dest), self.get_curr_bb())
+  pub fn new_load_inst(&self, src: &Rc<RefCell<Value>>, dest: &Rc<RefCell<Value>>) -> Instruction {
+    Instruction::new_load_inst(Rc::clone(src), Rc::clone(dest), self.get_curr_bb())
   }
 
-  pub fn gen_alloca_inst(&mut self, ty: Type) -> Instruction {
-    let addr = self.gen_new_vreg(ty);
-    Instruction::gen_alloca_inst(addr, self.get_curr_bb())
+  pub fn new_alloca_inst(&mut self, ty: Type) -> Instruction {
+    let addr = self.new_vreg(ty);
+    Instruction::new_alloca_inst(addr, self.get_curr_bb())
   }
 
   pub fn insert_inst(&self, inst: Instruction) {
@@ -222,9 +222,9 @@ impl IRBuilder {
     to.borrow_mut().insert_pred(Rc::clone(from));
   }
 
-  pub fn gen_new_basicblock(&mut self) -> Rc<RefCell<BasicBlock>> {
+  pub fn new_basicblock(&mut self) -> Rc<RefCell<BasicBlock>> {
     let mut bb = BasicBlock::new();
-    bb.set_label(Value::new_label(self.gen_new_num()));
+    bb.set_label(Value::new_label(self.new_num()));
     bb.set_parent(self.get_curr_func());
     Rc::new(RefCell::new(bb))
   }
@@ -240,7 +240,7 @@ impl IRBuilder {
 
   pub fn enter_new_basicblock_scope(&mut self) {
     self.leave_basicblock_scope();
-    self.curr_bb = Some(self.gen_new_basicblock());
+    self.curr_bb = Some(self.new_basicblock());
   }
 
   pub fn leave_basicblock_scope(&mut self) {

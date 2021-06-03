@@ -281,7 +281,7 @@ pub struct Instruction {
 }
 
 impl Instruction {
-  pub fn gen_phi_inst(
+  pub fn new_phi_inst(
     dest: Rc<RefCell<Value>>,
     pair: Vec<(Rc<RefCell<Value>>, Value)>,
     parent: Rc<RefCell<BasicBlock>>
@@ -298,7 +298,7 @@ impl Instruction {
     }
   }
 
-  pub fn gen_call_inst(
+  pub fn new_call_inst(
     dest: Option<Rc<RefCell<Value>>>,
     func_name: String,
     arg_list: Vec<Rc<RefCell<Value>>>,
@@ -316,7 +316,7 @@ impl Instruction {
       )
     }
   }
-  pub fn gen_alloca_inst(
+  pub fn new_alloca_inst(
     dest: Rc<RefCell<Value>>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
@@ -331,7 +331,7 @@ impl Instruction {
     }
   }
 
-  pub fn gen_store_inst(
+  pub fn new_store_inst(
     src: Rc<RefCell<Value>>,
     dest: Rc<RefCell<Value>>,
     parent: Rc<RefCell<BasicBlock>>
@@ -348,7 +348,7 @@ impl Instruction {
     }
   }
 
-  pub fn gen_load_inst(
+  pub fn new_load_inst(
     src: Rc<RefCell<Value>>,
     dest: Rc<RefCell<Value>>,
     parent: Rc<RefCell<BasicBlock>>
@@ -365,7 +365,7 @@ impl Instruction {
     }
   }
 
-  pub fn gen_binary_inst(
+  pub fn new_binary_inst(
     src1: Rc<RefCell<Value>>,
     src2: Rc<RefCell<Value>>,
     dest: Rc<RefCell<Value>>,
@@ -385,7 +385,7 @@ impl Instruction {
       )
     }
   }
-  pub fn gen_cmp_inst(
+  pub fn new_cmp_inst(
     op1: Rc<RefCell<Value>>,
     op2: Rc<RefCell<Value>>,
     dest: Rc<RefCell<Value>>,
@@ -406,7 +406,7 @@ impl Instruction {
     }
   }
 
-  pub fn gen_br_inst(
+  pub fn new_br_inst(
     condi_br: bool,
     src: Option<Rc<RefCell<Value>>>,
     true_bb_label: Value,
@@ -425,7 +425,7 @@ impl Instruction {
     }
   }
 
-  pub fn gen_ret_inst(
+  pub fn new_ret_inst(
     retval: Option<Rc<RefCell<Value>>>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction 
