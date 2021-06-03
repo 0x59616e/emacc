@@ -62,14 +62,14 @@ pub struct FunctionDef {
 impl FunctionDef {
   pub fn param_list(
     &self,
-  ) -> std::collections::hash_map::Values<String, Rc<RefCell<SymTabEntry>>> {
+  ) -> impl Iterator<Item = &Rc<RefCell<SymTabEntry>>> {
     self.local_var_list[0].values()
   }
 
   pub fn local_var_list(
     &self
-  ) -> std::iter::Flatten<std::slice::Iter<HashMap<String, Rc<RefCell<SymTabEntry>>>>> {
-    self.local_var_list.iter().flatten()
+  ) -> impl Iterator<Item = &Rc<RefCell<SymTabEntry>>> {
+    self.local_var_list.iter().flatten().map(|(_, x)| x)
   }
 }
 
@@ -85,7 +85,7 @@ impl Stmt for FunctionDef {
     irbuilder.enter_new_basicblock_scope();
 
     // Generate alloca instruction for all local variable.
-    for var in self.local_var_list().map(|(_, var)| var) {
+    for var in self.local_var_list() {
       let inst = irbuilder.new_alloca_inst(var.borrow().get_type());
       {
         var.borrow_mut().set_address(&inst.get_address().expect("No Address..."));
