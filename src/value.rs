@@ -27,7 +27,7 @@ impl fmt::Display for DataTy {
   }
 }
 
-#[derive(Clone, Copy, Hash)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub enum ValueTy {
   Label {
     label_num: usize,
@@ -42,7 +42,7 @@ pub enum ValueTy {
   }
 }
 
-#[derive(Clone, Copy, Hash)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Value {
   ty: ValueTy,
 }
