@@ -22,8 +22,17 @@ where T: DomFrontierInfoImpl {
 
 impl<T> DomFrontierInfo<T>
 where T: DomFrontierInfoImpl {
-  pub fn get_dominator(&self, bb: &Rc<RefCell<BasicBlock>>) -> Vec<Rc<RefCell<BasicBlock>>> {
-    DomFrontierInfoImpl::get_domfrontier(self.info.as_ref().unwrap(), bb)
+
+  pub fn get_dominator_info_mut(&mut self) -> &mut DominatorInfo {
+    &mut self.dom
+  }
+
+  pub fn get_dominator_info(&self) -> &DominatorInfo {
+    &self.dom
+  }
+
+  pub fn get_domfrontier(&self, bb: &Rc<RefCell<BasicBlock>>) -> Vec<Rc<RefCell<BasicBlock>>> {
+    self.info.as_ref().expect("No info").get_domfrontier(bb)
   }
 
   pub fn run(&mut self) {
@@ -64,12 +73,6 @@ pub struct DomFrontierInfoBase {
 }
 
 impl DomFrontierInfoImpl for DomFrontierInfoBase {
-  fn new() -> Self {
-    DomFrontierInfoBase {
-      df: HashMap::new(),
-    }
-  }
-
   fn add_frontier(&mut self, frontier: &Rc<RefCell<BasicBlock>>, bb: &Rc<RefCell<BasicBlock>>) {
     if let Some(set) = self.df.get_mut(&bb.borrow().get_label()) {
       set.push(Rc::clone(frontier));
@@ -79,10 +82,13 @@ impl DomFrontierInfoImpl for DomFrontierInfoBase {
   }
 
   fn get_domfrontier(&self, bb: &Rc<RefCell<BasicBlock>>) -> Vec<Rc<RefCell<BasicBlock>>> {
-    if let Some(res) = self.df.get(&bb.borrow().get_label()) {
-      res.iter().cloned().collect()
-    } else {
-      vec![]
+    self.df.get(&bb.borrow().get_label()).unwrap_or(&Vec::new()).iter().cloned().collect()
+  }
+  
+  fn new() -> Self {
+    DomFrontierInfoBase {
+      df: HashMap::new(),
     }
   }
+
 }

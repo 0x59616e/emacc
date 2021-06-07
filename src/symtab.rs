@@ -1,5 +1,5 @@
 use crate::value::Value;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::fmt;
@@ -74,14 +74,14 @@ impl SymTabEntry {
 
 pub struct SymTab {
   scope_stack: Vec<ScopeID>,
-  pub decl_set: Vec<HashMap<String, Rc<RefCell<SymTabEntry>>>>,
+  pub decl_set: Vec<BTreeMap<String, Rc<RefCell<SymTabEntry>>>>,
 }
 
 impl SymTab {
   pub fn new() -> SymTab {
     SymTab {
       scope_stack: vec![0],
-      decl_set: vec![HashMap::new()],
+      decl_set: vec![BTreeMap::new()],
     }
   }
 
@@ -90,11 +90,10 @@ impl SymTab {
   }
 
   pub fn insert_local_var(&mut self, local_var: Rc<RefCell<SymTabEntry>>) {
-    let mut local_var_borrow = local_var.borrow_mut();
-    local_var_borrow.set_scope(self.get_curr_scope());
-    let name = local_var_borrow.get_name();
-    drop(local_var_borrow);
-    self.decl_set.last_mut().unwrap().insert(name, local_var);
+    local_var.borrow_mut().set_scope(self.get_curr_scope());
+    let name = local_var.borrow().get_name();
+    let scope = self.get_curr_scope();
+    self.decl_set[scope as usize].insert(name, local_var);
   }
 
   pub fn insert_global_var(&mut self, global_var: Rc<RefCell<SymTabEntry>>) {
@@ -120,7 +119,7 @@ impl SymTab {
 
   pub fn enter_new_scope(&mut self) {
     self.scope_stack.push(self.decl_set.len() as ScopeID);
-    self.decl_set.push(HashMap::new());
+    self.decl_set.push(BTreeMap::new());
   }
 
   pub fn leave_scope(&mut self) {

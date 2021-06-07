@@ -3,7 +3,7 @@ use crate::symtab::*;
 use crate::parser::*;
 use crate::value::Value;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
 pub trait Stmt {
@@ -56,7 +56,7 @@ impl Stmt for TranslationUnit {
 pub struct FunctionDef {
   pub func_prototype: Rc<RefCell<SymTabEntry>>,
   pub body: Box<CompoundStmt>,
-  pub local_var_list: Vec<HashMap<String, Rc<RefCell<SymTabEntry>>>>,
+  pub local_var_list: Vec<BTreeMap<String, Rc<RefCell<SymTabEntry>>>>,
 }
 
 impl FunctionDef {
@@ -78,25 +78,25 @@ impl Stmt for FunctionDef {
     irbuilder.enter_new_func_scope(&self.func_prototype);
 
     // Generate virtual register for function parameter.
+    let mut param_reg = vec![];
     for param in self.param_list() {
-      irbuilder.new_vreg(param.borrow().get_type());
+      param_reg.push(irbuilder.new_vreg(param.borrow().get_type(), false));
     }
 
     irbuilder.enter_new_basicblock_scope();
 
-    // Generate alloca instruction for all local variable.
+    // Generate alloca instruction for all local variable all
     for var in self.local_var_list() {
       let inst = irbuilder.new_alloca_inst(var.borrow().get_type());
       {
-        var.borrow_mut().set_address(&inst.get_address().expect("No Address..."));
+        var.borrow_mut().set_address(&inst.get_ptr().expect("No Address..."));
       }
       irbuilder.insert_inst(inst);
     }
 
     // Generate store instruction for function parameter
-    for param in self.param_list() {
-      let src_reg = param.borrow().get_address().expect("No address??");
-      let inst = irbuilder.new_store_inst(&src_reg, &param.borrow().get_address().unwrap());
+    for (i, param) in self.param_list().enumerate() {
+      let inst = irbuilder.new_store_inst(&param_reg[i], &param.borrow().get_address().unwrap());
       irbuilder.insert_inst(inst);
     }
 
@@ -198,10 +198,7 @@ pub struct IfStmt {
 
 impl IfStmt {
   fn has_else(&self) -> bool {
-    if let Some(_) = self.else_stmt {
-      return true;
-    } 
-    false
+    self.else_stmt.is_some()
   }
 }
 
@@ -234,13 +231,11 @@ impl Stmt for IfStmt {
     if self.has_else() {
       irbuilder.enter_basicblock_scope(&else_block);
       self.else_stmt.as_ref().unwrap().emit_ir(irbuilder);
-
-      if !else_block.borrow().is_terminated() {
+      if !irbuilder.get_curr_bb().borrow().is_terminated() {
         let br_inst = irbuilder.new_uncondi_br_inst(&cont_block);
         irbuilder.insert_inst(br_inst);
       }
     }
-
     // let's keep on our journey...
     irbuilder.enter_basicblock_scope(&cont_block);
   }
@@ -419,12 +414,12 @@ impl Expr for BinOpExpr {
       irbuilder.enter_basicblock_scope(&block2);
 
       let src1 = irbuilder.new_const_i1(self.is_op_logical_or());
-      let dest = irbuilder.new_vreg_with_data_ty(src1.borrow().get_data_ty());
+      let dest = irbuilder.new_vreg_with_data_ty(src1.borrow().get_data_ty(), false);
       let inst = irbuilder.new_phi_inst(
         &dest,
         vec![
-              (src1, block0.borrow().get_label()),
-              (src2, block1.borrow().get_label())
+              (src1, Rc::clone(&block0)),
+              (src2, Rc::clone(&block1))
             ]
       );
       irbuilder.insert_inst(inst);
@@ -432,7 +427,7 @@ impl Expr for BinOpExpr {
     } else {
       let src1 = self.lhs.emit_ir(irbuilder).expect("No Value");
       let src2 = self.rhs.emit_ir(irbuilder).expect("No Value");
-      let dest = irbuilder.new_vreg_with_data_ty(src1.borrow().get_data_ty());
+      let dest = irbuilder.new_vreg_with_data_ty(src1.borrow().get_data_ty(), false);
       // cmp instruction
       let inst = if self.is_op_relational() {
         irbuilder.new_cmp_inst(&src1, &src2, &dest, self.op)
@@ -477,7 +472,7 @@ pub struct Var {
 
 impl Expr for Var {
   fn emit_ir(&self, irbuilder: &mut IRBuilder) -> Option<Rc<RefCell<Value>>> {
-    let dest = irbuilder.new_vreg(self.object.borrow().get_type());
+    let dest = irbuilder.new_vreg(self.object.borrow().get_type(), false);
     let src = self.object.borrow().get_address().expect("No Address");
     let inst = irbuilder.new_load_inst(&src, &dest);
     irbuilder.insert_inst(inst);

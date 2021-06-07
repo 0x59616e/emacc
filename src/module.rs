@@ -1,6 +1,8 @@
 use crate::function::*;
+use crate::value::Value;
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 pub struct Module {
   func_list: Vec<Rc<RefCell<Function>>>,
@@ -19,6 +21,10 @@ impl Module {
     for func in self.func_list.iter() {
       func.borrow().print();
     }
+  }
+
+  pub fn func_list(&mut self) -> impl Iterator<Item = &mut Rc<RefCell<Function>>> {
+    self.func_list.iter_mut()
   }
   pub fn insert(&mut self, func: Rc<RefCell<Function>>) {
     self.func_list.push(func);

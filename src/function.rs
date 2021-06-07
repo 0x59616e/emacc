@@ -1,16 +1,16 @@
 use crate::basicblock::*;
+use crate::module::Module;
 use crate::symtab::SymTabEntry;
-use crate::value::{Value, DataTy};
+use crate::value::{DataTy};
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 pub struct Function {
   name: String,
   ret_ty: DataTy,
   arg_ty: Vec<DataTy>,
   bb_list: Vec<Rc<RefCell<BasicBlock>>>,
-  bb_map: HashMap<Value, Rc<RefCell<BasicBlock>>>,
+  parent: Option<Rc<RefCell<Module>>>,
 }
 
 impl Function {
@@ -24,8 +24,16 @@ impl Function {
                       .map(|&ty| DataTy::from(ty))
                       .collect(),
       bb_list: vec![],
-      bb_map: HashMap::new(),
+      parent: None,
     }
+  }
+
+  pub fn bb_list_mut(&mut self) -> impl Iterator<Item = &mut Rc<RefCell<BasicBlock>>> {
+    self.bb_list.iter_mut()
+  }
+
+  pub fn bb_list(&self) -> impl Iterator<Item = &Rc<RefCell<BasicBlock>>> {
+    self.bb_list.iter()
   }
 
   pub fn print(&self) {
@@ -46,6 +54,13 @@ impl Function {
   pub fn insert(&mut self, bb: Rc<RefCell<BasicBlock>>) {
     self.bb_list.push(Rc::clone(&bb));
     let label = {bb.borrow().get_label()};
-    self.bb_map.insert(label, bb);
+  }
+
+  pub fn set_parent(&mut self, parent: &Rc<RefCell<Module>>) {
+    self.parent = Some(Rc::clone(parent));
+  }
+
+  pub fn get_parent(&self) -> Rc<RefCell<Module>> {
+    Rc::clone(self.parent.as_ref().expect("No parent"))
   }
 }

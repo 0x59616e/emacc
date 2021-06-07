@@ -1,9 +1,11 @@
 use crate::instruction::Instruction;
 use crate::symtab::Type;
+use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive()]
 pub enum DataTy {
   I1,
   I32,
@@ -35,11 +37,13 @@ pub enum ValueTy {
   Register {
     reg_num: usize,
     ty: DataTy,
+    is_ptr: bool,
   },
   Const {
     value: u64,
     ty: DataTy,
-  }
+  },
+  Undef,
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
@@ -53,6 +57,7 @@ impl fmt::Display for Value {
       ValueTy::Register{reg_num, ..} => write!(f, "%{}", reg_num),
       ValueTy::Const{value, ..} => write!(f, "{}", value),
       ValueTy::Label{label_num} => write!(f, "%{}", label_num),
+      ValueTy::Undef => write!(f, "undef"),
     }
   }
 }
@@ -89,13 +94,19 @@ impl Value {
     }
   }
 
-  pub fn new_register(reg_num: usize, ty: DataTy) -> Value {
+  pub fn new_register(reg_num: usize, ty: DataTy, is_ptr: bool) -> Value {
     Value {
       ty: ValueTy::Register {
         reg_num,
         ty, // currently only `int` supported
+        is_ptr,
       }
     }
   }
-}
 
+  pub fn new_undef() -> Value {
+    Value {
+      ty: ValueTy::Undef,
+    }
+  }
+}

@@ -16,6 +16,8 @@ pub trait DominatorInfoImpl {
     where T: Iterator<Item = &'a Rc<RefCell<BasicBlock>>>;
   
   fn get_idom(&self, bb: &Rc<RefCell<BasicBlock>>) -> Option<Rc<RefCell<BasicBlock>>>;
+  fn get_root(&self) -> Option<Rc<RefCell<BasicBlock>>>;
+  fn calc_root(&mut self);
 }
 
 //------------DominatorInfo------------
@@ -26,6 +28,11 @@ where T: DominatorInfoImpl {
 }
 
 impl DominatorInfo {
+  pub fn get_root(&self) -> Rc<RefCell<BasicBlock>> {
+    DominatorInfoImpl::get_root(self.info.as_ref().unwrap())
+                      .unwrap_or(Rc::clone(self.func.borrow().bb_list().collect::<Vec<_>>()[0]))
+  }
+
   pub fn get_idom(&self, bb: &Rc<RefCell<BasicBlock>>) -> Option<Rc<RefCell<BasicBlock>>> {
     DominatorInfoImpl::get_idom(self.info.as_ref().unwrap(), bb)
   }
@@ -47,6 +54,7 @@ impl<T: DominatorInfoImpl> DominatorInfo<T> {
       });
     }
 
+    dom.calc_root();
     self.info = Some(dom);
   }
 
@@ -62,11 +70,21 @@ impl<T: DominatorInfoImpl> DominatorInfo<T> {
 pub struct DominatorInfoBase {
   dom: HashMap<Value, HashSet<Value>>,
   tree: HashMap<Value, Rc<RefCell<BasicBlock>>>,
+  root: Option<Rc<RefCell<BasicBlock>>>,
 }
 
 impl DominatorInfoImpl for DominatorInfoBase {
-  fn new() -> Self {
-    Self::new()
+  fn calc_root(&mut self) {
+    for (child, parent) in self.tree.iter() {
+      if let None = self.tree.get(&parent.borrow().get_label()) {
+        self.root = Some(Rc::clone(parent));
+        break;
+      }
+    }
+  }
+
+  fn get_root(&self) -> Option<Rc<RefCell<BasicBlock>>> {
+    self.root.as_ref().cloned()
   }
 
   fn get_idom(&self, bb: &Rc<RefCell<BasicBlock>>) -> Option<Rc<RefCell<BasicBlock>>> {
@@ -88,6 +106,7 @@ impl DominatorInfoImpl for DominatorInfoBase {
       }
     });
   }
+
 
   fn update<'a, T>(&mut self, bb: &Rc<RefCell<BasicBlock>>, preds_list: T) -> bool
   where
@@ -115,6 +134,10 @@ impl DominatorInfoImpl for DominatorInfoBase {
 
     changed
   }
+
+  fn new() -> Self {
+    Self::new()
+  }
 }
 
 impl DominatorInfoBase {
@@ -122,6 +145,7 @@ impl DominatorInfoBase {
     DominatorInfoBase {
       dom: HashMap::new(),
       tree: HashMap::new(),
+      root: None,
     }
   }
 
