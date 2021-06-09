@@ -10,7 +10,7 @@ use std::rc::Rc;
 pub struct PromoteMemoryToReg {
   func: Rc<RefCell<Function>>,
   dfinfo: DomFrontierInfo,
-  visited: HashSet<Value>,
+  visited: Vec<Rc<RefCell<BasicBlock>>>,
 }
 
 impl PromoteMemoryToReg {
@@ -107,11 +107,11 @@ impl PromoteMemoryToReg {
   }
 
   fn has_visited(&self, bb: &Rc<RefCell<BasicBlock>>) -> bool {
-    self.visited.get(&bb.borrow().get_label()).map_or(false, |_| true)
+    self.visited.iter().any(|x| Rc::ptr_eq(bb, x))
   }
 
   fn add_to_visited_set(&mut self, bb: &Rc<RefCell<BasicBlock>>) {
-    self.visited.insert(bb.borrow().get_label());
+    self.visited.push(Rc::clone(bb));
   }
 
   fn update_phi_in_successor(
@@ -129,7 +129,7 @@ impl PromoteMemoryToReg {
                           .into_iter()
                           .filter(|(_, x)| Rc::ptr_eq(bb, x))
                           .for_each(|(ptr1, _)| {
-                            if let Some((_, new)) = curr_val.iter().find(|(ptr2, _)| *ptr1.borrow() == *ptr2.borrow()) {
+                            if let Some((_, new)) = curr_val.iter().find(|(ptr2, _)| Rc::ptr_eq(ptr1, ptr2)) {
                               *ptr1 = Rc::clone(new);
                             }
                           });
@@ -207,7 +207,7 @@ impl PromoteMemoryToReg {
     PromoteMemoryToReg {
       func: Rc::clone(func),
       dfinfo,
-      visited: HashSet::new(),
+      visited: vec![],
     }
   }
 }

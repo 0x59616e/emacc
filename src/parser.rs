@@ -282,6 +282,7 @@ impl Parser {
   //               expression-statement
   //               selection-statement
   //               jump-statement
+  //               iteration-statement
   //------------------------------------
   fn parse_stmt(&mut self) -> Box<dyn Stmt> {
     let tok = self.peek_token();
@@ -289,9 +290,33 @@ impl Parser {
       TokenKind::LBrace => self.parse_compound_stmt(),
       TokenKind::KwIf => self.parse_selection_stmt(),
       TokenKind::KwReturn => self.parse_jump_stmt(),
+      TokenKind::KwWhile => self.parse_iteration_statement(),
       _ => self.parse_expr_stmt(),
     }
   }
+
+  fn parse_iteration_statement(&mut self) -> Box<dyn Stmt> {
+    let tok = self.peek_token();
+    match tok.kind {
+      TokenKind::KwWhile => self.parse_while_stmt(),
+      _ => panic!("You should've not been here"),
+    }
+  }
+  // while ( expression ) statement
+  fn parse_while_stmt(&mut self) -> Box<dyn Stmt> {
+    self.consume_token(TokenKind::KwWhile).expect("Expect 'while'");
+    self.consume_token(TokenKind::LParen).expect("Expect '('");
+    let expr = self.parse_expr();
+    self.consume_token(TokenKind::RParen).expect("Expect ')'");
+    let stmt = self.parse_stmt();
+    Box::new(
+      WhileStmt {
+        cond: expr,
+        stmt,
+      }
+    )
+  }
+
   // jump-statement -> return expression[opt] ';'
   fn parse_jump_stmt(&mut self) -> Box<dyn Stmt> {
     self.consume_token(TokenKind::KwReturn);

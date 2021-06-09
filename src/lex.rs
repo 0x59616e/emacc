@@ -30,6 +30,7 @@ pub enum TokenKind {
   KwReturn,       // return
   KwIf,           // if
   KwElse,         // else
+  KwWhile,        // while
 }
 
 #[derive(Debug)]
@@ -92,6 +93,8 @@ fn read_identifier_or_keyword(iter: &mut std::iter::Peekable<std::vec::IntoIter<
     kind = TokenKind::KwIf;
   } else if res.eq("else") {
     kind = TokenKind::KwElse;
+  } else if res.eq("while") {
+    kind = TokenKind::KwWhile;
   } else {
     kind = TokenKind::Identifier(res);
   }

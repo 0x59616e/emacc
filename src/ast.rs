@@ -261,6 +261,48 @@ impl Stmt for IfStmt {
   }
 }
 
+pub struct WhileStmt {
+  pub cond: Box<dyn Expr>,
+  pub stmt: Box<dyn Stmt>,
+}
+
+impl Stmt for WhileStmt {
+  fn emit_ir(&self, irbuilder: &mut IRBuilder) {
+    // branch to test block...
+    let test_block = irbuilder.new_basicblock();
+    let inst = irbuilder.new_uncondi_br_inst(&test_block);
+    irbuilder.insert_inst(inst);
+    // emit condition testing code...
+    irbuilder.enter_basicblock_scope(&test_block);
+    let test_result = self.cond.emit_ir(irbuilder).expect("Expect value");
+    // branch to different block according to the result
+    let true_block  = irbuilder.new_basicblock();
+    let false_block = irbuilder.new_basicblock();
+    let inst = irbuilder.new_condi_br_inst(&test_result, &true_block, &false_block);
+    irbuilder.insert_inst(inst);
+    // emit stmt code...
+    irbuilder.enter_basicblock_scope(&true_block);
+    self.stmt.emit_ir(irbuilder);
+    // branch to test block...again
+    let inst = irbuilder.new_uncondi_br_inst(&test_block);
+    irbuilder.insert_inst(inst);
+    // move on...
+    irbuilder.enter_basicblock_scope(&false_block);
+  }
+
+  fn print_ast(&self, prefix: String) {
+    println!("-WhileStmt");
+    let mut s1 = prefix.clone();
+    let mut s2 = prefix.clone();
+
+    s1.push_str(" |");
+    s2.push_str("  ");
+    print!("{} |", prefix);
+    self.cond.print_ast(s1);
+    print!("{} `", prefix);
+    self.stmt.print_ast(s2);
+  }
+}
 
 pub struct ExprStmt {
   pub expr: Box<dyn Expr>,
