@@ -1,8 +1,5 @@
-use crate::instruction::Instruction;
 use crate::symtab::Type;
-use std::cell::RefCell;
 use std::fmt;
-use std::rc::Rc;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[derive()]

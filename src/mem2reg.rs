@@ -73,7 +73,7 @@ impl PromoteMemoryToReg {
         }
       } else {
         for op in inst.borrow_mut().input_operand_list_mut() {
-          if let Some((_, new)) = curr_val.iter().find(|(old, _)| *op.borrow() == *old.borrow()) {
+          if let Some((_, new)) = curr_val.iter().rev().find(|(old, _)| *op.borrow() == *old.borrow()) {
             *op = Rc::clone(new);
           }
         }
@@ -92,7 +92,7 @@ impl PromoteMemoryToReg {
       bb.borrow_mut().remove_inst(&inst);
     }
 
-    // move on...to the child in dominator tree
+    // move on...
     for succ in bb.borrow().succs_list() {
       self.rename(Rc::clone(succ), curr_val.iter().cloned().collect(), i);
     }
@@ -116,7 +116,7 @@ impl PromoteMemoryToReg {
 
   fn update_phi_in_successor(
     bb: &Rc<RefCell<BasicBlock>>,
-    curr_val: &mut Vec<(Rc<RefCell<Value>>, Rc<RefCell<Value>>)>
+    curr_val: &mut [(Rc<RefCell<Value>>, Rc<RefCell<Value>>)]
   )
   {
     for succ in bb.borrow().succs_list() {
@@ -137,17 +137,13 @@ impl PromoteMemoryToReg {
     }
   }
 
-  fn update_operand(old: &mut Rc<RefCell<Value>>, new: &Rc<RefCell<Value>>) {
-    *old = Rc::clone(new);
-  }
-
   fn update_curr_mapping(ptr: &mut Rc<RefCell<Value>>, new: Rc<RefCell<Value>>) {
     *ptr = new;
   }
 
   fn get_ptr_this_inst_is_using<'a> (
     inst: &Rc<RefCell<Instruction>>,
-    curr_val: &'a mut Vec<(Rc<RefCell<Value>>, Rc<RefCell<Value>>)>
+    curr_val: &'a mut [(Rc<RefCell<Value>>, Rc<RefCell<Value>>)]
   ) -> Option<&'a mut Rc<RefCell<Value>>>
   {
     curr_val.iter_mut().find(|(ptr, _)| inst.borrow().is_using(ptr)).map(|(_, x)| x)
@@ -155,7 +151,7 @@ impl PromoteMemoryToReg {
 
   fn get_ptr_this_inst_is_defining<'a>(
     inst: &Rc<RefCell<Instruction>>,
-    curr_val: &'a mut Vec<(Rc<RefCell<Value>>,Rc<RefCell<Value>>)>
+    curr_val: &'a mut [(Rc<RefCell<Value>>,Rc<RefCell<Value>>)]
   ) -> Option<&'a mut Rc<RefCell<Value>>>
   {
     curr_val.iter_mut().find(|(ptr, _)| inst.borrow().is_defining(ptr)).map(|(_, x)| x)

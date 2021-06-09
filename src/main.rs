@@ -36,7 +36,7 @@ fn main() {
 
   let ir_builder = irbuilder::IRBuilder::new();
 
-  let mut module = ir_builder.run(translation_unit);
+  let module = ir_builder.run(translation_unit);
 
   module.borrow().print();
   module.borrow_mut().func_list().for_each(|func| {

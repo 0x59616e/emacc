@@ -53,7 +53,6 @@ impl Function {
 
   pub fn insert(&mut self, bb: Rc<RefCell<BasicBlock>>) {
     self.bb_list.push(Rc::clone(&bb));
-    let label = {bb.borrow().get_label()};
   }
 
   pub fn set_parent(&mut self, parent: &Rc<RefCell<Module>>) {

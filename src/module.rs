@@ -1,8 +1,6 @@
 use crate::function::*;
-use crate::value::Value;
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 pub struct Module {
   func_list: Vec<Rc<RefCell<Function>>>,

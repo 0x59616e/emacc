@@ -573,7 +573,6 @@ pub struct Instruction {
 }
 
 impl Instruction {
-
   pub fn get_parent(&self) -> Rc<RefCell<BasicBlock>> {
     Rc::clone(&self.parent)
   }

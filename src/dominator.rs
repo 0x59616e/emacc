@@ -75,7 +75,7 @@ pub struct DominatorInfoBase {
 
 impl DominatorInfoImpl for DominatorInfoBase {
   fn calc_root(&mut self) {
-    for (child, parent) in self.tree.iter() {
+    for (_, parent) in self.tree.iter() {
       if let None = self.tree.get(&parent.borrow().get_label()) {
         self.root = Some(Rc::clone(parent));
         break;
