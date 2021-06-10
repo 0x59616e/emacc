@@ -1,7 +1,7 @@
 use crate::basicblock::BasicBlock;
 use crate::domfrontier::DomFrontierInfo;
 use crate::function::Function;
-use crate::instruction::Instruction;
+use crate::instruction::{Instruction, Inst};
 use crate::value::Value;
 use std::cell::RefCell;
 use std::collections::HashSet;

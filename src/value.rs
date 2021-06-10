@@ -51,9 +51,12 @@ pub struct Value {
 impl fmt::Display for Value {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self.ty {
-      ValueTy::Register{reg_num, ..} => write!(f, "%{}", reg_num),
-      ValueTy::Const{value, ..} => write!(f, "{}", value),
-      ValueTy::Label{label_num} => write!(f, "%{}", label_num),
+      ValueTy::Register{reg_num, ty, is_ptr} => {
+        write!(f, "%{} {}", reg_num, ty)?;
+        if is_ptr {write!(f, "*")} else {write!(f, "")}
+      },
+      ValueTy::Const{value, ty} => write!(f, "{} {}", value, ty),
+      ValueTy::Label{label_num} => write!(f, "label %{}", label_num),
       ValueTy::Undef => write!(f, "undef"),
     }
   }

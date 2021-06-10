@@ -1,3 +1,4 @@
+use crate::instruction::Inst;
 use crate::irbuilder::IRBuilder;
 use crate::symtab::*;
 use crate::parser::*;
@@ -455,7 +456,8 @@ impl Expr for BinOpExpr {
 
       irbuilder.enter_basicblock_scope(&block2);
 
-      let src1 = irbuilder.new_const_i1(self.is_op_logical_or());
+      // TODO: variable casting...
+      let src1 = irbuilder.new_const_i32(self.is_op_logical_or() as i32);
       let dest = irbuilder.new_vreg_with_data_ty(src1.borrow().get_data_ty(), false);
       let inst = irbuilder.new_phi_inst(
         &dest,

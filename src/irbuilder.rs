@@ -118,7 +118,7 @@ impl IRBuilder {
     binop: BinOpType
   ) -> Instruction
   {
-    let ty = BinaryInstTy::from(binop);
+    let ty = BinaryTy::from(binop);
     Instruction::new_binary_inst(Rc::clone(src1), Rc::clone(src2), Rc::clone(dest), ty, self.get_curr_bb())
   }
   pub fn new_cmp_inst(

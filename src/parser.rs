@@ -466,7 +466,7 @@ impl Parser {
         self.consume_token(TokenKind::RParen);
         node
       }
-      _ => panic!("cast_expr: {:?}", self.toklist),
+      _ => panic!("cast_expr: {:?}, {:?}", tok, self.toklist),
     };
     node
   }
