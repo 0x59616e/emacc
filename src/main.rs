@@ -4,6 +4,7 @@ use std::io::prelude::*;
 
 mod ast;
 mod basicblock;
+mod codegen;
 mod dominator;
 mod function;
 mod lex;
