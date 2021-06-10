@@ -31,7 +31,7 @@ pub enum ValueTy {
   Label {
     label_num: usize,
   },
-  Register {
+  VReg {
     reg_num: usize,
     ty: DataTy,
     is_ptr: bool,
@@ -51,7 +51,7 @@ pub struct Value {
 impl fmt::Display for Value {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self.ty {
-      ValueTy::Register{reg_num, ty, is_ptr} => {
+      ValueTy::VReg{reg_num, ty, is_ptr} => {
         write!(f, "%{} {}", reg_num, ty)?;
         if is_ptr {write!(f, "*")} else {write!(f, "")}
       },
@@ -65,7 +65,7 @@ impl fmt::Display for Value {
 impl Value {
   pub fn get_data_ty(&self) -> DataTy {
     match self.ty {
-      ValueTy::Register{ty, ..} | ValueTy::Const{ty, ..} => ty,
+      ValueTy::VReg{ty, ..} | ValueTy::Const{ty, ..} => ty,
       _ => panic!("This is a label c'mon")
     }
   }
@@ -96,7 +96,7 @@ impl Value {
 
   pub fn new_register(reg_num: usize, ty: DataTy, is_ptr: bool) -> Value {
     Value {
-      ty: ValueTy::Register {
+      ty: ValueTy::VReg {
         reg_num,
         ty, // currently only `int` supported
         is_ptr,
