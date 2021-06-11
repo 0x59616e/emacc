@@ -1,3 +1,4 @@
+use crate::codegen::machineinstr::MachineInstr;
 use crate::function::*;
 use crate::instruction::*;
 use crate::value::Value;
@@ -10,6 +11,7 @@ pub struct BasicBlock {
   succs: Vec<Rc<RefCell<BasicBlock>>>,
   preds: Vec<Rc<RefCell<BasicBlock>>>,
   inst_list: Vec<Rc<RefCell<Instruction>>>,
+  machine_inst_list: Vec<Rc<RefCell<MachineInstr>>>,
 }
 
 impl BasicBlock {
@@ -20,6 +22,7 @@ impl BasicBlock {
       succs: vec![],
       preds: vec![],
       inst_list: vec![],
+      machine_inst_list: vec![],
     }
   }
 

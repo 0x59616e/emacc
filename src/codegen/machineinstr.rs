@@ -3,7 +3,7 @@ use crate::basicblock::BasicBlock;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub(super) struct MachineInstr {
+pub struct MachineInstr {
   // instruction type, defined by target
   ty: u8,
   op: Vec<Rc<RefCell<Value>>>,
