@@ -1,4 +1,3 @@
-use crate::codegen::machineinstr::MachineInstr;
 use crate::function::*;
 use crate::instruction::*;
 use crate::value::Value;
@@ -11,7 +10,6 @@ pub struct BasicBlock {
   succs: Vec<Rc<RefCell<BasicBlock>>>,
   preds: Vec<Rc<RefCell<BasicBlock>>>,
   inst_list: Vec<Rc<RefCell<Instruction>>>,
-  machine_inst_list: Vec<Rc<RefCell<MachineInstr>>>,
 }
 
 impl BasicBlock {
@@ -22,7 +20,6 @@ impl BasicBlock {
       succs: vec![],
       preds: vec![],
       inst_list: vec![],
-      machine_inst_list: vec![],
     }
   }
 
@@ -47,7 +44,7 @@ impl BasicBlock {
   }
 
   pub fn is_terminated(&self) -> bool {
-    self.inst_list.last().map_or(false, |inst| inst.borrow().is_terminate_inst())
+    self.inst_list.last().map_or(false, |inst| inst.borrow().is_terminator())
   }
 
   pub fn inst_list(&self) -> impl Iterator<Item = &Rc<RefCell<Instruction>>> {
@@ -102,5 +99,23 @@ impl BasicBlock {
 
   pub fn insert_at_head(&mut self, inst: Instruction) {
     self.inst_list.insert(0, Rc::new(RefCell::new(inst)));
+  }
+
+  pub fn insert_before_terminator(&mut self, inst: Rc<RefCell<Instruction>>) {
+    let pos = self.inst_list.iter().position(|inst| inst.borrow().is_terminator())
+                                   .expect("No terminator ??");
+
+    self.inst_list.insert(pos, inst);
+  }
+
+  pub fn remove_all_phi(&mut self) {
+    let pos = self.inst_list()
+                  .position(|inst| ! inst.borrow().is_phi_inst())
+                  .unwrap_or(0);
+    self.inst_list.drain(..pos);
+  }
+
+  pub fn update_inst_list(&mut self, list: Vec<Rc<RefCell<Instruction>>>) {
+    self.inst_list = list;
   }
 }

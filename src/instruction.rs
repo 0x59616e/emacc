@@ -5,27 +5,9 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
-pub trait Inst {
-  fn is_terminate_inst(&self) -> bool;
-  fn is_alloca_inst(&self) -> bool;
-  fn is_phi_inst(&self) -> bool;
-  fn is_store_inst(&self) -> bool;
-  fn is_load_inst(&self) -> bool;
-  fn is_branch_inst(&self) -> bool;
-  fn is_return_inst(&self) -> bool;
-  fn is_defining(&self, _: &Rc<RefCell<Value>>) -> bool;
-  fn is_using(&self, _: &Rc<RefCell<Value>>) -> bool;
-  fn get_operand(&self, _: usize) -> Option<Rc<RefCell<Value>>>;
-  fn get_dest(&self) -> Option<Rc<RefCell<Value>>>;
-  fn set_dest(&mut self, _: &Rc<RefCell<Value>>);
-  fn get_ptr(&self) -> Option<Rc<RefCell<Value>>>;
-  fn get_pairs_list_in_phi_mut(&mut self) -> Vec<(&mut Rc<RefCell<Value>>, &mut Rc<RefCell<BasicBlock>>)>;
-  fn input_operand_list_mut(&mut self) -> Vec<&mut Rc<RefCell<Value>>>;
-  fn print(&self);
-}
-
 #[derive(PartialEq, Eq)]
-enum InstrTy {
+pub enum InstrTy {
+  Asm(String),
   Alloca,
   Store,
   Load,
@@ -49,6 +31,7 @@ impl fmt::Display for InstrTy {
       Self::Binary(ty) => write!(f, "{}", ty),
       Self::Call(name) => write!(f, "call @{}", name),
       Self::Phi        => write!(f, "phi"),
+      Self::Asm(name)        => write!(f, "{}", name),
     }
   }
 }
@@ -56,107 +39,159 @@ impl fmt::Display for InstrTy {
 pub struct Instruction {
   pub parent: Rc<RefCell<BasicBlock>>,
   ty: InstrTy,
-  dest: Option<Rc<RefCell<Value>>>,
-  op: Vec<Rc<RefCell<Value>>>,
+  // use for code lowering
+  mi_ty: u8,
+  dest: Option<Value>,
+  op: Vec<Value>,
+  uselist: Vec<Rc<RefCell<Instruction>>>,
   // used for phi and br
   bb: Vec<Rc<RefCell<BasicBlock>>>,
 }
 
-impl Inst for Instruction {
-  fn is_terminate_inst(&self) -> bool {
-    match self.ty {
-      InstrTy::Branch | InstrTy::Return => true,
-      _ => false,
-    }
+impl Instruction {
+  pub fn set_asm_ty(&mut self, (ty, name): (u8, String)) {
+    self.ty = InstrTy::Asm(name);
+    self.mi_ty = ty;
   }
 
-  fn is_alloca_inst(&self) -> bool {
+  pub fn get_inst_ty(&self) -> &InstrTy {
+    &self.ty
+  }
+
+  pub fn is_terminator(&self) -> bool {
+    self.is_branch_inst() || self.is_return_inst()
+  }
+
+  pub fn is_alloca_inst(&self) -> bool {
     return self.ty == InstrTy::Alloca;
   }
 
-  fn is_phi_inst(&self) -> bool {
+  pub fn is_phi_inst(&self) -> bool {
     return self.ty == InstrTy::Phi;
   }
 
-  fn is_store_inst(&self) -> bool {
+  pub fn is_store_inst(&self) -> bool {
     return self.ty == InstrTy::Store;
   }
 
-  fn is_load_inst(&self) -> bool {
+  pub fn is_load_inst(&self) -> bool {
     return self.ty == InstrTy::Load;
   }
 
-  fn is_branch_inst(&self) -> bool {
+  pub fn is_branch_inst(&self) -> bool {
     return self.ty == InstrTy::Branch;
   }
 
-  fn is_return_inst(&self) -> bool {
+  pub fn is_condi_br(&self) -> bool {
+    self.is_branch_inst() && self.bb.len() == 2
+  }
+
+  pub fn is_return_inst(&self) -> bool {
     return self.ty == InstrTy::Return;
   }
 
-  fn is_defining(&self, u: &Rc<RefCell<Value>>) -> bool {
-    self.dest.as_ref().map_or(false, |v| Rc::ptr_eq(u, v))
+  pub fn is_defining(&self, u: Value) -> bool {
+    self.dest.map_or(false, |v| u == v)
   }
 
-  fn is_using(&self, u: &Rc<RefCell<Value>>) -> bool {
-    self.op.iter().any(|v| Rc::ptr_eq(u, v))
+  pub fn is_using(&self, u: Value) -> bool {
+    self.op.iter().any(|v| u == *v)
   }
 
-  fn get_operand(&self, i: usize) -> Option<Rc<RefCell<Value>>> {
+  pub fn get_operand(&self, i: usize) -> Option<Value> {
     self.op.get(i).cloned()
   }
 
-  fn get_dest(&self) -> Option<Rc<RefCell<Value>>> {
-    self.dest.as_ref().cloned()
+  pub fn get_bb(&self, i: usize) -> Option<Rc<RefCell<BasicBlock>>> {
+    self.bb.get(i).cloned()
   }
 
-  fn set_dest(&mut self, u: &Rc<RefCell<Value>>) {
-    self.dest = Some(Rc::clone(u));
+  pub fn get_dest(&self) -> Option<Value> {
+    self.dest
   }
 
-  fn get_ptr(&self) -> Option<Rc<RefCell<Value>>> {
-    if !self.is_alloca_inst() && !self.is_store_inst() {
-      panic!("Not alloca or store");
+  pub fn set_dest(&mut self, u: Value) {
+    self.dest = Some(u);
+  }
+
+  pub fn get_ptr(&self) -> Option<Value> {
+    if self.is_alloca_inst() || self.is_store_inst() {
+      return self.dest;
+    } else if self.is_load_inst() {
+      return self.get_operand(0);
     }
-    self.dest.as_ref().cloned()
+    panic!("Not alloca, store or load");
   }
 
-  fn get_pairs_list_in_phi_mut(&mut self) -> Vec<(&mut Rc<RefCell<Value>>, &mut Rc<RefCell<BasicBlock>>)> {
+  pub fn get_pairs_list_in_phi_mut(&mut self) -> Vec<(&mut Value, &mut Rc<RefCell<BasicBlock>>)> {
     if !self.is_phi_inst() {
       panic!("Not phi")
     }
     self.op.iter_mut().zip(self.bb.iter_mut()).collect()
   }
 
-  fn input_operand_list_mut(&mut self) -> Vec<&mut Rc<RefCell<Value>>> {
-    self.op.iter_mut().collect()
+  pub fn get_pairs_list_in_phi(&self) -> Vec<(&Value, &Rc<RefCell<BasicBlock>>)> {
+    if !self.is_phi_inst() {
+      panic!("Not phi");
+    }
+
+    self.op.iter().zip(self.bb.iter()).collect()
   }
 
-  fn print(&self) {
-    if let Some(dest) = self.dest.as_ref() {
-      print!("{} = ", dest.borrow());
+  pub fn src_operand_list_mut(&mut self) -> impl Iterator<Item = &mut Value> {
+    self.op.iter_mut()
+  }
+
+  pub fn src_operand_list(&self) -> Vec<Value> {
+    self.op.iter().cloned().collect()
+  }
+
+  pub fn add_to_use_list(
+    &mut self,
+    inst: &Rc<RefCell<Instruction>>
+  )
+  {
+    self.uselist.push(Rc::clone(inst));
+  }
+
+  fn replace_op(&mut self, old_op: Value, new_op: Value) {
+    *self.op.iter_mut().find(|op| **op == old_op).expect("No op") = new_op;
+  }
+
+  pub fn replace_all_use_with(&mut self, old_op: Value, new_op: Value) {
+    self.set_dest(new_op);
+    for inst in self.uselist.iter() {
+      inst.borrow_mut().replace_op(old_op, new_op);
+    }
+  }
+
+  pub fn clear_use_list(&mut self) {
+    self.uselist.clear();
+  }
+
+  pub fn print(&self) {
+    if let Some(dest) = self.dest {
+      print!("{} = ", dest);
     }
     print!("{}", self.ty);
     if !self.is_phi_inst() {
-      self.op.iter().for_each(|op| print!(", {}", op.borrow()));
+      self.op.iter().for_each(|op| print!(", {}", op));
       self.bb.iter().for_each(|bb| print!(", {}", bb.borrow().get_label()));
     } else {
       self.op.iter().zip(self.bb.iter()).for_each(|(op, bb)|{
-        print!(", [{}, {}]", op.borrow(), bb.borrow().get_label());
+        print!(", [{}, {}]", op, bb.borrow().get_label());
       });
     }
     println!("");
   }
-}
 
-impl Instruction {
   pub fn get_parent(&self) -> Rc<RefCell<BasicBlock>> {
     Rc::clone(&self.parent)
   }
 
   pub fn new_phi_inst(
-    dest: Rc<RefCell<Value>>,
-    pairs: Vec<(Rc<RefCell<Value>>, Rc<RefCell<BasicBlock>>)>,
+    dest: Value,
+    pairs: Vec<(Value, Rc<RefCell<BasicBlock>>)>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
@@ -164,76 +199,108 @@ impl Instruction {
     Instruction {
       parent,
       ty: InstrTy::Phi,
+      mi_ty: 0,
+      uselist: vec![],
       dest: Some(dest),
       op,
       bb,
     }
   }
 
+  pub fn add_operand(mut self, op: Value) -> Instruction {
+    self.op.push(op);
+    self
+  }
+
+  pub fn add_bb(mut self, bb: Rc<RefCell<BasicBlock>>) -> Instruction {
+    self.bb.push(bb);
+    self
+  }
+
+  pub fn new_asm_inst((mi_ty, name): (u8, String), parent: Rc<RefCell<BasicBlock>>) -> Instruction {
+    Instruction {
+      parent,
+      ty: InstrTy::Asm(name),
+      mi_ty,
+      dest: None,
+      op: vec![],
+      uselist: vec![],
+      bb: vec![],
+    }
+  }
+
   pub fn new_call_inst(
-    dest: Option<Rc<RefCell<Value>>>,
+    dest: Option<Value>,
     func_name: String,
-    arg_list: Vec<Rc<RefCell<Value>>>,
+    arg_list: Vec<Value>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
     Instruction {
       parent,
       ty: InstrTy::Call(func_name),
+      mi_ty: 0,
       dest,
       op: arg_list,
+      uselist: vec![],
       bb: Vec::new(),
     }
   }
 
   pub fn new_alloca_inst(
-    dest: Rc<RefCell<Value>>,
+    dest: Value,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
     Instruction {
       parent: parent,
       ty: InstrTy::Alloca,
+      mi_ty: 0,
       dest: Some(dest),
+      uselist: vec![],
       op: vec![],
       bb: vec![],
     }
   }
 
   pub fn new_store_inst(
-    src: Rc<RefCell<Value>>,
-    dest: Rc<RefCell<Value>>,
+    src: Value,
+    dest: Value,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
     Instruction {
       parent,
       ty: InstrTy::Store,
+      mi_ty: 0,
       dest: Some(dest),
+      uselist: vec![],
       op: vec![src],
       bb: vec![],
     }
   }
 
   pub fn new_load_inst(
-    src: Rc<RefCell<Value>>,
-    dest: Rc<RefCell<Value>>,
+    src: Value,
+    dest: Value,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
   {
     Instruction {
       parent,
       ty: InstrTy::Load,
+      mi_ty: 0,
       dest: Some(dest),
+      uselist: vec![],
       op: vec![src],
       bb: vec![],
     }
   }
 
   pub fn new_binary_inst(
-    src1: Rc<RefCell<Value>>,
-    src2: Rc<RefCell<Value>>,
-    dest: Rc<RefCell<Value>>,
+    src1: Value,
+    src2: Value,
+    dest: Value,
     ty: BinaryTy,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
@@ -241,16 +308,18 @@ impl Instruction {
     Instruction {
       parent,
       ty: InstrTy::Binary(ty),
+      mi_ty: 0,
       dest: Some(dest),
+      uselist: vec![],
       op: vec![src1, src2],
       bb: vec![],
     }
   }
 
   pub fn new_cmp_inst(
-    op1: Rc<RefCell<Value>>,
-    op2: Rc<RefCell<Value>>,
-    dest: Rc<RefCell<Value>>,
+    op1: Value,
+    op2: Value,
+    dest: Value,
     ty: CmpTy,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction
@@ -258,7 +327,9 @@ impl Instruction {
     Instruction {
       parent,
       ty: InstrTy::Cmp(ty),
+      mi_ty: 0,
       dest: Some(dest),
+      uselist: vec![],
       op: vec![op1, op2],
       bb: vec![],
     }
@@ -266,7 +337,7 @@ impl Instruction {
 
   pub fn new_br_inst(
     condi_br: bool,
-    src: Option<Rc<RefCell<Value>>>,
+    src: Option<Value>,
     true_bb: Rc<RefCell<BasicBlock>>,
     false_bb: Option<Rc<RefCell<BasicBlock>>>,
     parent: Rc<RefCell<BasicBlock>>
@@ -277,23 +348,27 @@ impl Instruction {
     Instruction {
       parent,
       ty: InstrTy::Branch,
+      mi_ty: 0,
       dest: None,
       op,
+      uselist: vec![],
       bb,
     }
   }
 
   pub fn new_ret_inst(
-    retval: Option<Rc<RefCell<Value>>>,
+    retval: Option<Value>,
     parent: Rc<RefCell<BasicBlock>>
   ) -> Instruction 
   {
     Instruction {
       parent,
       ty: InstrTy::Return,
+      mi_ty: 0,
       op: retval.map_or(vec![], |retval| vec![retval]),
       dest: None,
       bb: vec![],
+      uselist: vec![],
     }
   }
 }
@@ -334,16 +409,16 @@ impl fmt::Display for CmpTy {
   }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum BinaryTy {
   Add, // add
   Sub, // sub
   Div, // div
   Mul, // mul
-  Shl, // <<
-  Shr, // >>
-  And, // bitwise &
-  Or,  // bitwise |
+  // Shl, // <<
+  // Shr, // >>
+  // And, // bitwise &
+  // Or,  // bitwise |
   Xor, // bitwise ^
 }
 
@@ -366,10 +441,10 @@ impl fmt::Display for BinaryTy {
       Self::Sub => write!(f, "sub"),
       Self::Div => write!(f, "div"),
       Self::Mul => write!(f, "mul"),
-      Self::Shl => write!(f, "shl"),
-      Self::Shr => write!(f, "shr"),
-      Self::And => write!(f, "and"),
-      Self::Or  => write!(f, "or"),
+      // Self::Shl => write!(f, "shl"),
+      // Self::Shr => write!(f, "shr"),
+      // Self::And => write!(f, "and"),
+      // Self::Or  => write!(f, "or"),
       Self::Xor => write!(f, "xor"),
     }
   }

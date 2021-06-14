@@ -35,11 +35,12 @@ pub enum ValueTy {
     reg_num: usize,
     ty: DataTy,
     is_ptr: bool,
+    is_tmp: bool,
   },
-  Const {
-    value: u64,
-    ty: DataTy,
-  },
+  Const_I32(i32, DataTy),
+  Const_I1(bool, DataTy),
+  PhyReg(u8),
+  StackMemAddr(u32/*offset from stack pointer*/),
   Undef,
 }
 
@@ -51,13 +52,18 @@ pub struct Value {
 impl fmt::Display for Value {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self.ty {
-      ValueTy::VReg{reg_num, ty, is_ptr} => {
-        write!(f, "%{} {}", reg_num, ty)?;
+      ValueTy::VReg{reg_num, ty, is_ptr, is_tmp} => {
+        write!(f, "%")?;
+        if is_tmp {write!(f, ".")?;}
+        write!(f, "{} {}", reg_num, ty)?;
         if is_ptr {write!(f, "*")} else {write!(f, "")}
       },
-      ValueTy::Const{value, ty} => write!(f, "{} {}", value, ty),
+      ValueTy::Const_I32(value, ty) => write!(f, "{} {}", value, ty),
+      ValueTy::Const_I1(value, ty)  => write!(f, "{} {}", value, ty),
       ValueTy::Label{label_num} => write!(f, "label %{}", label_num),
       ValueTy::Undef => write!(f, "undef"),
+      ValueTy::PhyReg(i) => write!(f, "#{}", i),
+      _ => panic!("uh ??"),
     }
   }
 }
@@ -65,26 +71,55 @@ impl fmt::Display for Value {
 impl Value {
   pub fn get_data_ty(&self) -> DataTy {
     match self.ty {
-      ValueTy::VReg{ty, ..} | ValueTy::Const{ty, ..} => ty,
+      ValueTy::VReg{ty, ..}     | 
+      ValueTy::Const_I32(_, ty) | 
+      ValueTy::Const_I1(_, ty)  => ty,
       _ => panic!("This is a label c'mon")
+    }
+  }
+
+  pub fn neg(&mut self) {
+    match &mut self.ty {
+      ValueTy::Const_I32(value, _) => {
+        *value = -*value;
+      }
+      _ => (),
+    }
+  }
+
+  // FIXME: Is there any better way to do this ?
+  pub fn plus(&mut self, add: i64) {
+    match &mut self.ty {
+      ValueTy::Const_I32(val,..) => {
+        *val += add as i32;
+      }
+      _ => panic!(""),
+    }
+  }
+
+  pub fn is_const(&self) -> bool {
+    match self.ty {
+      ValueTy::Const_I1(..) | ValueTy::Const_I32(..) => true,
+      _ => false,
+    }
+  }
+  // FIXME: Is there any better way to do this ?
+  pub fn _new_const(ty: DataTy, value: i64) -> Value{
+    match ty {
+      DataTy::I32 => Value::new_const_i32(value as i32),
+      DataTy::I1  => Value::new_const_i1(value != 0),
     }
   }
 
   pub fn new_const_i1(value: bool) -> Value {
     Value {
-      ty: ValueTy::Const {
-        value: value as u64,
-        ty: DataTy::I1,
-      }
+      ty: ValueTy::Const_I1(value, DataTy::I1),
     }
   }
 
   pub fn new_const_i32(value: i32) -> Value {
     Value {
-      ty: ValueTy::Const {
-        value: value as u64,
-        ty: DataTy::I32
-      }
+      ty: ValueTy::Const_I32(value, DataTy::I32),
     }
   }
 
@@ -94,12 +129,30 @@ impl Value {
     }
   }
 
-  pub fn new_register(reg_num: usize, ty: DataTy, is_ptr: bool) -> Value {
+  pub fn new_phyreg(reg_num: u8) -> Value {
+    Value {
+      ty: ValueTy::PhyReg(reg_num)
+    }
+  }
+
+  pub fn new_tmp_vreg(mut reg: Value) -> Value {
+    match &mut reg.ty {
+      ValueTy::VReg {is_tmp, ..} => {
+        assert!(!*is_tmp);
+        *is_tmp = true;
+        reg
+      }
+      _ => panic!("Not a register"),
+    }
+  }
+
+  pub fn new_vreg(reg_num: usize, ty: DataTy, is_ptr: bool) -> Value {
     Value {
       ty: ValueTy::VReg {
         reg_num,
         ty, // currently only `int` supported
         is_ptr,
+        is_tmp: false,
       }
     }
   }

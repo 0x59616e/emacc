@@ -21,8 +21,8 @@ impl Module {
     }
   }
 
-  pub fn func_list(&mut self) -> impl Iterator<Item = &mut Rc<RefCell<Function>>> {
-    self.func_list.iter_mut()
+  pub fn func_list(&self) -> impl Iterator<Item = &Rc<RefCell<Function>>> {
+    self.func_list.iter()
   }
   pub fn insert(&mut self, func: Rc<RefCell<Function>>) {
     self.func_list.push(func);
