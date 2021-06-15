@@ -15,19 +15,6 @@ pub struct RISCV32 {
 
 impl Target for RISCV32 {
   fn instruction_lowering(&self, func: &Rc<RefCell<Function>>) {
-    // pre-allocate register for function argument
-    // using 'addi %0, a0, 0'
-    //       'addi %1, a1, 0'
-    //        ...etc
-    let root = Rc::clone(func.borrow().bb_list().nth(0).unwrap());
-    let zero = Value::new_const_i32(0);
-    for (i, &dataty) in func.borrow().param_data_ty_list().enumerate() {
-      let arg  = Value::new_vreg(i, dataty, false);
-      let phyreg = self.reg(format!("a{}", i).as_str());
-      let mov = Instruction::new_binary_inst(zero, phyreg, arg, BinaryTy::Add, Rc::clone(&root));
-      root.borrow_mut().insert_at_head(mov);
-    }
-
     // lower instruction
     for bb in func.borrow().bb_list() {
       let mut new_inst_list = vec![];
@@ -209,41 +196,12 @@ impl Target for RISCV32 {
             }
             InstrTy::Call(_name) => {
               // TODO: support more than eight arguments
-              // FIXME: unfinished
               assert!(inst.borrow().src_operand_list().len() <= 8);
-              let zero = self.reg("x0");
-              for (i, op) in inst.borrow().src_operand_list().into_iter().enumerate() {
-                // move op into ai
-                // add ai x0 op
-                let dest = self.reg(format!("a{}", i).as_str());
-                let add = Instruction::new_binary_inst(zero, op, dest, BinaryTy::Add, Rc::clone(bb));
-                new_inst_list.push(Rc::new(RefCell::new(add)));
-              }
-              let call = Instruction::new_asm_inst(self.asm("call"), Rc::clone(bb));
-              new_inst_list.push(Rc::new(RefCell::new(call)));
-              // move the return value into dest
-              if let Some(dest) = inst.borrow().get_dest() {
-                let mov = Instruction::new_binary_inst(self.reg("x0"),
-                                                        self.reg("a0"),
-                                                        dest,
-                                                        BinaryTy::Add,
-                                                        Rc::clone(bb));
-                new_inst_list.push(Rc::new(RefCell::new(mov)));
-              }
+              new_inst_list.push(Rc::clone(inst));
             }
             InstrTy::Return => {
               // TODO: support other return type
-              // FIXME: Unfinished
-              // ret %src
-              // move %src into a0
-              // add a0 %src x0
-              let src = inst.borrow().get_operand(0).unwrap();
-              let a0 = self.reg("a0");
-              let zero = self.reg("x0");
-              let add = Instruction::new_binary_inst(src, zero, a0, BinaryTy::Add, Rc::clone(bb));
-              new_inst_list.push(Rc::new(RefCell::new(add)));
-              let ret = Instruction::new_asm_inst(self.asm("ret"), Rc::clone(bb));
-              new_inst_list.push(Rc::new(RefCell::new(ret)));
+              new_inst_list.push(Rc::clone(inst));
             }
             InstrTy::Asm(_) => panic!(""),
           }
