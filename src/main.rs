@@ -41,11 +41,7 @@ fn main() {
 
   module.borrow().print();
   module.borrow_mut().func_list().for_each(|func| {
-    let mut dominfo = <DominatorInfo>::new(func);
-    dominfo.run();
-    let mut dfinfo = <DomFrontierInfo>::new(func, dominfo);
-    dfinfo.run();
-    let mut mem2reg = PromoteMemoryToReg::new(func, dfinfo);
+    let mut mem2reg = PromoteMemoryToReg::new(func);
     mem2reg.run();
   });
   let riscv = RISCV32::new();

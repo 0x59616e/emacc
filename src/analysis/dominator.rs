@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::collections::hash_set::HashSet;
 use std::collections::HashMap;
 use std::rc::Rc;
+use super::Analysis;
 
 pub trait DominatorInfoImpl {
   fn new() -> Self;
@@ -38,8 +39,8 @@ impl DominatorInfo {
   }
 }
 
-impl<T: DominatorInfoImpl> DominatorInfo<T> {
-  pub fn run(&mut self) {
+impl<T: DominatorInfoImpl> Analysis for DominatorInfo<T> {
+  fn run(&mut self) {
     let mut dom = T::new();
 
     DominatorInfoImpl::initialize(&mut dom, self.func.borrow_mut().bb_list_mut());
@@ -58,7 +59,7 @@ impl<T: DominatorInfoImpl> DominatorInfo<T> {
     self.info = Some(dom);
   }
 
-  pub fn new(func: &Rc<RefCell<Function>>) -> DominatorInfo {
+  fn new(func: &Rc<RefCell<Function>>) -> Self {
     DominatorInfo {
       func: Rc::clone(func),
       info: None,

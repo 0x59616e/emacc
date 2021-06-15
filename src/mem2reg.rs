@@ -201,7 +201,8 @@ impl PromoteMemoryToReg {
                             .collect::<Vec<_>>();
   }
 
-  pub fn new(func: &Rc<RefCell<Function>>, dfinfo: DomFrontierInfo) -> PromoteMemoryToReg {
+  pub fn new(func: &Rc<RefCell<Function>>) -> PromoteMemoryToReg {
+    let dfinfo = crate::analysis::get_analysis(func);
     PromoteMemoryToReg {
       func: Rc::clone(func),
       dfinfo,

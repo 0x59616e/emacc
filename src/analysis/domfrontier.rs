@@ -4,7 +4,9 @@ use crate::value::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use super::Analysis;
 use super::dominator::DominatorInfo;
+use super::get_analysis;
 
 pub trait DomFrontierInfoImpl {
   fn new() -> Self;
@@ -34,8 +36,10 @@ where T: DomFrontierInfoImpl {
   pub fn get_domfrontier(&self, bb: &Rc<RefCell<BasicBlock>>) -> Vec<Rc<RefCell<BasicBlock>>> {
     self.info.as_ref().expect("No info").get_domfrontier(bb)
   }
-
-  pub fn run(&mut self) {
+}
+impl<T> Analysis for DomFrontierInfo<T>
+where T: DomFrontierInfoImpl {
+  fn run(&mut self) {
     /* every join points must be one of dominator frontier 
      * of its predessor and its idom of its predessor
      */
@@ -58,7 +62,8 @@ where T: DomFrontierInfoImpl {
     self.info = Some(dfinfo);
   }
 
-  pub fn new(func: &Rc<RefCell<Function>>, dom: DominatorInfo) -> DomFrontierInfo<T> {
+  fn new(func: &Rc<RefCell<Function>>) -> Self {
+    let dom = get_analysis(func);
     DomFrontierInfo {
       func: Rc::clone(func),
       dom,
