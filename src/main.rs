@@ -1,13 +1,9 @@
 mod analysis;
 mod ast;
-mod basicblock;
 mod codegen;
-mod function;
 mod lex;
-mod instruction;
-mod irbuilder;
+mod ir;
 mod mem2reg;
-mod module;
 mod parser;
 mod symtab;
 mod value;
@@ -15,8 +11,6 @@ mod value;
 use ast::Stmt;
 use codegen::target::riscv::RISCV32;
 use codegen::*;
-use analysis::dominator::*;
-use analysis::domfrontier::*;
 use mem2reg::*;
 use std::env;
 use std::fs::File;
@@ -35,7 +29,7 @@ fn main() {
 
   // translation_unit.print_ast("".to_string());
 
-  let ir_builder = irbuilder::IRBuilder::new();
+  let ir_builder = ir::irbuilder::IRBuilder::new();
 
   let module = ir_builder.run(translation_unit);
 

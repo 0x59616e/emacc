@@ -2,7 +2,7 @@ pub mod riscv;
 
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::function::Function;
+use crate::ir::function::Function;
 
 
 pub trait Target {

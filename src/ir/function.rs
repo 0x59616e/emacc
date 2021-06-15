@@ -1,6 +1,6 @@
-use crate::basicblock::*;
-use crate::instruction::Instruction;
-use crate::module::Module;
+use crate::ir::basicblock::*;
+use crate::ir::instruction::Instruction;
+use crate::ir::module::Module;
 use crate::symtab::SymTabEntry;
 use crate::value::{DataTy, Value};
 use std::rc::Rc;

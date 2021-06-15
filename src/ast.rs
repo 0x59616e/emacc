@@ -1,4 +1,4 @@
-use crate::irbuilder::IRBuilder;
+use crate::ir::irbuilder::IRBuilder;
 use crate::symtab::*;
 use crate::parser::*;
 use crate::value::Value;

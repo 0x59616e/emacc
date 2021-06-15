@@ -1,8 +1,8 @@
 use crate::ast::*;
-use crate::basicblock::*;
-use crate::function::*;
-use crate::instruction::*;
-use crate::module::*;
+use crate::ir::basicblock::*;
+use crate::ir::function::*;
+use crate::ir::instruction::*;
+use crate::ir::module::*;
 use crate::parser::BinOpType;
 use crate::symtab::{SymTabEntry, Type};
 use crate::value::{Value, DataTy};

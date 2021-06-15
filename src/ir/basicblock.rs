@@ -1,5 +1,5 @@
-use crate::function::*;
-use crate::instruction::*;
+use crate::ir::function::*;
+use crate::ir::instruction::*;
 use crate::value::Value;
 use std::cell::RefCell;
 use std::rc::Rc;

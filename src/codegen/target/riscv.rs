@@ -1,6 +1,6 @@
-use crate::basicblock::BasicBlock;
-use crate::function::Function;
-use crate::instruction::{Instruction, InstrTy, BinaryTy, CmpTy};
+use crate::ir::basicblock::BasicBlock;
+use crate::ir::function::Function;
+use crate::ir::instruction::{Instruction, InstrTy, BinaryTy, CmpTy};
 use crate::value::Value;
 use std::cell::RefCell;
 use std::rc::Rc;

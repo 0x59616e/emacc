@@ -1,5 +1,5 @@
-use crate::basicblock::BasicBlock;
-use crate::function::Function;
+use crate::ir::basicblock::BasicBlock;
+use crate::ir::function::Function;
 use crate::value::Value;
 use std::cell::RefCell;
 use std::collections::hash_set::HashSet;

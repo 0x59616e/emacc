@@ -1,4 +1,4 @@
-use crate::function::*;
+use crate::ir::function::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 

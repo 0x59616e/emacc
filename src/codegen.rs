@@ -1,9 +1,9 @@
 pub mod target;
 mod liveinterval;
 
-use crate::function::Function;
-use crate::instruction::{Instruction, BinaryTy};
-use crate::module::Module;
+use crate::ir::function::Function;
+use crate::ir::instruction::{Instruction, BinaryTy};
+use crate::ir::module::Module;
 use crate::value::Value;
 use std::cell::RefCell;
 use std::rc::Rc;

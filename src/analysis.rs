@@ -1,7 +1,8 @@
 pub mod dominator;
 pub mod domfrontier;
+pub mod liveout;
 
-use crate::function::Function;
+use crate::ir::function::Function;
 use std::cell::RefCell;
 use std::rc::Rc;
 

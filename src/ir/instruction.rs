@@ -1,4 +1,4 @@
-use crate::basicblock::*;
+use super::basicblock::*;
 use crate::parser::BinOpType;
 use crate::value::Value;
 use std::cell::RefCell;
