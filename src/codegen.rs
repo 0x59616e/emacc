@@ -1,4 +1,5 @@
 pub mod target;
+mod liveinterval;
 
 use crate::function::Function;
 use crate::instruction::{Instruction, BinaryTy};
@@ -23,6 +24,7 @@ pub fn code_gen<T: Target>(module: &Rc<RefCell<Module>>, target: T) {
   println!("-----------after instruction lowering--------");
   module.borrow().print();
   // Time to register allocation...
+  
 }
 
 pub fn eliminate_phi(func: &Rc<RefCell<Function>>) {

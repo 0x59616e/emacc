@@ -1,10 +1,10 @@
 use crate::basicblock::BasicBlock;
-use crate::dominator::DominatorInfo;
 use crate::function::Function;
 use crate::value::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use super::dominator::DominatorInfo;
 
 pub trait DomFrontierInfoImpl {
   fn new() -> Self;

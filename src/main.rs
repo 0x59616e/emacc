@@ -1,11 +1,7 @@
-use std::env;
-use std::fs::File;
-use std::io::prelude::*;
-
+mod analysis;
 mod ast;
 mod basicblock;
 mod codegen;
-mod dominator;
 mod function;
 mod lex;
 mod instruction;
@@ -15,14 +11,16 @@ mod module;
 mod parser;
 mod symtab;
 mod value;
-mod domfrontier;
 
 use ast::Stmt;
 use codegen::target::riscv::RISCV32;
 use codegen::*;
-use dominator::*;
-use domfrontier::*;
+use analysis::dominator::*;
+use analysis::domfrontier::*;
 use mem2reg::*;
+use std::env;
+use std::fs::File;
+use std::io::prelude::*;
 
 fn main() {
   let args: Vec<String> = env::args().collect();

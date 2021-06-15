@@ -1,5 +1,5 @@
+use crate::analysis::domfrontier::DomFrontierInfo;
 use crate::basicblock::BasicBlock;
-use crate::domfrontier::DomFrontierInfo;
 use crate::function::Function;
 use crate::instruction::Instruction;
 use crate::value::Value;
