@@ -95,7 +95,7 @@ impl LiveOutInfo {
   }
 
   pub fn get_livein(
-    &mut self,
+    &self,
     succ: &Rc<RefCell<BasicBlock>>,
     bb: Option<&Rc<RefCell<BasicBlock>>>,
   ) -> HashSet<Value>
