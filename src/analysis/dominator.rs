@@ -27,7 +27,7 @@ impl Analysis for DominatorInfo {
       changed = false;
 
       func.borrow().bb_list().for_each(|bb| {
-        changed = self.update(bb);
+        changed |= self.update(bb);
       });
     }
     self.construct_dominator_tree();
