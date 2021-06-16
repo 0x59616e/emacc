@@ -121,6 +121,12 @@ impl LiveOutInfo {
   fn calc_livein_and_varkill(&mut self) {
     let func = Rc::clone(&self.func);
 
+    // function parameters live at the start of the root implicitly.
+    let root = func.borrow().get_root();
+    for param in func.borrow().param_list() {
+      self.add_to_livein_set(&root, param);
+    }
+
     for bb in func.borrow().bb_list() {
       for inst in bb.borrow().inst_list() {
 

@@ -202,7 +202,7 @@ impl PromoteMemoryToReg {
   }
 
   pub fn new(func: &Rc<RefCell<Function>>) -> PromoteMemoryToReg {
-    let dfinfo = crate::analysis::get_analysis(func);
+    let dfinfo = crate::analysis::run_analysis(func);
     PromoteMemoryToReg {
       func: Rc::clone(func),
       dfinfo,

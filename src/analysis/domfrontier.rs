@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use super::Analysis;
 use super::dominator::DominatorInfo;
-use super::get_analysis;
+use super::run_analysis;
 
 pub trait DomFrontierInfoImpl {
   fn new() -> Self;
@@ -63,7 +63,7 @@ where T: DomFrontierInfoImpl {
   }
 
   fn new(func: &Rc<RefCell<Function>>) -> Self {
-    let dom = get_analysis(func);
+    let dom = run_analysis(func);
     DomFrontierInfo {
       func: Rc::clone(func),
       dom,

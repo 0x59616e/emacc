@@ -1,7 +1,7 @@
 pub mod target;
 mod liveinterval;
 mod liverange;
-mod slotindex;
+mod index;
 
 use crate::ir::function::Function;
 use crate::ir::instruction::{Instruction, BinaryTy};
