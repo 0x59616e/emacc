@@ -7,176 +7,129 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use super::Analysis;
 
-pub trait DominatorInfoImpl {
-  fn new() -> Self;
-
-  fn initialize<'a, T>(&'a mut self, bb_list: T)
-    where T: Iterator<Item = &'a mut Rc<RefCell<BasicBlock>>>;
-
-  fn update<'a, T>(&mut self, bb: &Rc<RefCell<BasicBlock>>, preds_list: T) -> bool
-    where T: Iterator<Item = &'a Rc<RefCell<BasicBlock>>>;
-  
-  fn get_idom(&self, bb: &Rc<RefCell<BasicBlock>>) -> Option<Rc<RefCell<BasicBlock>>>;
-  fn get_root(&self) -> Option<Rc<RefCell<BasicBlock>>>;
-  fn calc_root(&mut self);
-}
-
 //------------DominatorInfo------------
-pub struct DominatorInfo<T = DominatorInfoBase> 
-where T: DominatorInfoImpl {
+pub struct DominatorInfo {
   func: Rc<RefCell<Function>>,
-  info: Option<T>,
+  dominator: HashMap<Value, HashSet<Value>>,
+  child: HashMap<Value, Vec<Rc<RefCell<BasicBlock>>>>,
+  parent: HashMap<Value, Rc<RefCell<BasicBlock>>>,
 }
 
-impl DominatorInfo {
-  pub fn get_root(&self) -> Rc<RefCell<BasicBlock>> {
-    DominatorInfoImpl::get_root(self.info.as_ref().unwrap())
-                      .unwrap_or(Rc::clone(self.func.borrow().bb_list().collect::<Vec<_>>()[0]))
-  }
-
-  pub fn get_idom(&self, bb: &Rc<RefCell<BasicBlock>>) -> Option<Rc<RefCell<BasicBlock>>> {
-    DominatorInfoImpl::get_idom(self.info.as_ref().unwrap(), bb)
-  }
-}
-
-impl<T: DominatorInfoImpl> Analysis for DominatorInfo<T> {
+impl Analysis for DominatorInfo {
   fn run(&mut self) {
-    let mut dom = T::new();
 
-    DominatorInfoImpl::initialize(&mut dom, self.func.borrow_mut().bb_list_mut());
+    self.initialize();
 
     let mut changed = true;
+    let func = Rc::clone(&self.func);
 
     while changed {
       changed = false;
 
-      self.func.borrow_mut().bb_list_mut().for_each(|bb| {
-        changed = DominatorInfoImpl::update(&mut dom, bb, bb.borrow().preds_list());
+      func.borrow().bb_list().for_each(|bb| {
+        changed = self.update(bb);
       });
     }
-
-    dom.calc_root();
-    self.info = Some(dom);
+    self.construct_dominator_tree();
   }
 
   fn new(func: &Rc<RefCell<Function>>) -> Self {
     DominatorInfo {
       func: Rc::clone(func),
-      info: None,
+      dominator: HashMap::new(),
+      child: HashMap::new(),
+      parent: HashMap::new(),
     }
   }
 }
 
-//------------DominatorInfoBase------------
-pub struct DominatorInfoBase {
-  dom: HashMap<Value, HashSet<Value>>,
-  tree: HashMap<Value, Rc<RefCell<BasicBlock>>>,
-  root: Option<Rc<RefCell<BasicBlock>>>,
-}
 
-impl DominatorInfoImpl for DominatorInfoBase {
-  fn calc_root(&mut self) {
-    for (_, parent) in self.tree.iter() {
-      if let None = self.tree.get(&parent.borrow().get_label()) {
-        self.root = Some(Rc::clone(parent));
-        break;
+impl DominatorInfo {
+  fn construct_dominator_tree(&mut self) {
+    let func = Rc::clone(&self.func);
+    for bb in func.borrow().bb_list() {
+
+      let parent = self.find_imm_dominator(bb, bb.borrow().preds_list().nth(0));
+      if let Some(parent) = parent {
+        self.construct_tree_edge(bb, &parent);
       }
     }
   }
 
-  fn get_root(&self) -> Option<Rc<RefCell<BasicBlock>>> {
-    self.root.as_ref().cloned()
-  }
-
-  fn get_idom(&self, bb: &Rc<RefCell<BasicBlock>>) -> Option<Rc<RefCell<BasicBlock>>> {
-    self.tree.get(&bb.borrow().get_label()).cloned()
-  }
-
-  fn initialize<'a, T>(&'a mut self, bb_list: T)
-  where 
-    T: Iterator<Item = &'a mut Rc<RefCell<BasicBlock>>>
+  fn find_imm_dominator(
+    &self,
+    bb: &Rc<RefCell<BasicBlock>>,
+    runner: Option<&Rc<RefCell<BasicBlock>>>
+  ) -> Option<Rc<RefCell<BasicBlock>>>
   {
-    let mut bb_list: Vec<_> = bb_list.map(|bb| Rc::clone(bb)).collect();
-    let uset = Self::get_universe_set(bb_list.iter_mut());
-    bb_list.iter().for_each(|bb| {
-      if bb.borrow().is_root() {
-        self.insert(bb, Self::turn_single_bb_into_set(bb))
+    if let Some(runner) = runner {
+      if self.is_dominated_by(bb, runner) {
+        Some(Rc::clone(runner))
       } else {
-        self.insert(bb, uset.clone());
-        self.construct_edge(bb, bb.borrow().get_pred().as_ref().expect("No predessor??"));
+        self.find_imm_dominator(bb, runner.borrow().preds_list().nth(0))
       }
-    });
+    } else {
+      None
+    }
   }
 
-
-  fn update<'a, T>(&mut self, bb: &Rc<RefCell<BasicBlock>>, preds_list: T) -> bool
-  where
-    T: Iterator<Item = &'a Rc<RefCell<BasicBlock>>>
+  fn construct_tree_edge(
+    &mut self,
+    child: &Rc<RefCell<BasicBlock>>,
+    parent: &Rc<RefCell<BasicBlock>>
+  )
   {
+    self.parent.insert(child.borrow().get_label(), Rc::clone(parent));
+    self.child.get_mut(&parent.borrow().get_label()).unwrap().push(Rc::clone(child));
+  }
+
+  fn is_dominated_by(&self, bb: &Rc<RefCell<BasicBlock>>, pred: &Rc<RefCell<BasicBlock>>) -> bool {
+    self.dominator.get(&bb.borrow().get_label()).unwrap().contains(&pred.borrow().get_label())
+  }
+
+  fn update(&mut self, bb: &Rc<RefCell<BasicBlock>>) -> bool {
+    // intersection of all predessors
     let (changed, new) = {
-      let old = self.get_dominator(bb);
-      let mut new = preds_list.map(|bb| self.get_dominator(bb))
-                            .fold(old.clone(), |acc, bb| {
-                              acc.intersection(&bb).cloned().collect::<HashSet<Value>>()
-                            });
+      let old = self.dominator.get(&bb.borrow().get_label()).unwrap();
+      let mut new = bb.borrow().preds_list()
+                          .map(|bb| self.dominator.get(&bb.borrow().get_label()).unwrap())
+                          .fold(old.clone(), |acc, dom| {
+                              acc.intersection(&dom).cloned().collect()
+                          });
       new.insert(bb.borrow().get_label());
-
-      (!new.is_subset(old) || !old.is_subset(&new), new)
-    }; 
-    
-    if let Some(mut parent) = self.get_idom(&bb) {
-      while !new.contains(&parent.borrow().get_label()) {
-        parent = self.get_idom(&parent).expect("Something goes wrong...");
-      }
-      self.construct_edge(&bb, &parent);
-    }
-
-    self.insert(bb, new);
-
+      let changed = !old.is_subset(&new) || !new.is_subset(old);
+      (changed, new)
+    };
+    self.dominator.insert(bb.borrow().get_label(), new);
     changed
   }
 
-  fn new() -> Self {
-    Self::new()
-  }
-}
-
-impl DominatorInfoBase {
-  pub fn new() -> DominatorInfoBase {
-    DominatorInfoBase {
-      dom: HashMap::new(),
-      tree: HashMap::new(),
-      root: None,
+  fn initialize(&mut self) {
+    for bb in self.func.borrow().bb_list() {
+      let init_dominator_set = if bb.borrow().preds_list().count() == 0 {
+        let mut tmp = HashSet::new();
+        tmp.insert(bb.borrow().get_label());
+        tmp
+      } else {
+        self.func.borrow().bb_list()
+                          .map(|bb| bb.borrow().get_label())
+                          .collect::<HashSet<_>>()
+      };
+      self.dominator.insert(bb.borrow().get_label(), init_dominator_set);
+      self.child.insert(bb.borrow().get_label(), Vec::new());
     }
   }
 
-  fn get_dominator(&self, bb: &Rc<RefCell<BasicBlock>>) -> &HashSet<Value> {
-    self.dom.get(&bb.borrow().get_label()).expect("No set")
+  pub fn get_root(&self) -> Rc<RefCell<BasicBlock>> {
+    for bb in self.func.borrow().bb_list() {
+      if let None = self.parent.get(&bb.borrow().get_label()) {
+        return Rc::clone(bb);
+      }
+    }
+    panic!("Can't find root");
   }
 
-  fn insert(&mut self, key: &Rc<RefCell<BasicBlock>>, val: HashSet<Value>) {
-    self.dom.insert(key.borrow().get_label(), val);
-  }
-
-  fn construct_edge(&mut self, child: &Rc<RefCell<BasicBlock>>, parent: &Rc<RefCell<BasicBlock>>) {
-    self.tree.insert(child.borrow().get_label(), Rc::clone(parent));
-  }
-
-  fn get_universe_set<'a, T>(bb_list: T) -> HashSet<Value>
-  where
-    T: Iterator<Item = &'a mut Rc<RefCell<BasicBlock>>>
-  {
-    bb_list.map(|bb| bb.borrow().get_label()).collect()
-  }
-
-  fn turn_single_bb_into_set(bb: &Rc<RefCell<BasicBlock>>) -> HashSet<Value> {
-    vec![bb.borrow().get_label()].into_iter().collect()
+  pub fn get_idom(&self, bb: &Rc<RefCell<BasicBlock>>) -> Option<Rc<RefCell<BasicBlock>>> {
+    self.parent.get(&bb.borrow().get_label()).cloned()
   }
 }
-
-
-
-
-
-
-
