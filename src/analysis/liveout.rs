@@ -62,7 +62,7 @@ impl LiveOutInfo {
                                       .cloned()
                                       .collect::<HashSet<_>>();
 
-      let tmp = self.get_livein(succ, bb).union(&tmp).cloned().collect::<HashSet<_>>();
+      let tmp = self.get_livein(succ, Some(bb)).union(&tmp).cloned().collect::<HashSet<_>>();
 
       result = result.union(&tmp).cloned().collect();
     }
@@ -97,7 +97,7 @@ impl LiveOutInfo {
   pub fn get_livein(
     &mut self,
     succ: &Rc<RefCell<BasicBlock>>,
-    bb: &Rc<RefCell<BasicBlock>>
+    bb: Option<&Rc<RefCell<BasicBlock>>>,
   ) -> HashSet<Value>
   {
     let mut result = self.livein.get(&succ.borrow().get_label()).unwrap().clone();
@@ -108,10 +108,12 @@ impl LiveOutInfo {
 
       // Phi is a special case.
       // The source operands in phi only live in the block where it comes from.
-      for (&op, pred) in inst.borrow().get_pairs_list_in_phi() {
-        if op.is_vreg() && pred.borrow().get_label() == bb.borrow().get_label() {
-          result.insert(op);
-          break;
+      if let Some(bb) = bb {
+        for (&op, pred) in inst.borrow().get_pairs_list_in_phi() {
+          if op.is_vreg() && pred.borrow().get_label() == bb.borrow().get_label() {
+            result.insert(op);
+            break;
+          }
         }
       }
     }
