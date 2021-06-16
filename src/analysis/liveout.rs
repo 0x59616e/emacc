@@ -107,7 +107,7 @@ impl LiveOutInfo {
       }
 
       // Phi is a special case.
-      // The source operands in phi only live in the block where it comes from.
+      // The source operands in phi only live out the block where it comes from.
       if let Some(bb) = bb {
         for (&op, pred) in inst.borrow().get_pairs_list_in_phi() {
           if op.is_vreg() && pred.borrow().get_label() == bb.borrow().get_label() {
