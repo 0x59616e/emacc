@@ -2,7 +2,7 @@ use crate::analysis::domfrontier::DomFrontierInfo;
 use crate::ir::basicblock::BasicBlock;
 use crate::ir::function::Function;
 use crate::ir::instruction::Instruction;
-use crate::value::Value;
+use crate::ir::value::Value;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;

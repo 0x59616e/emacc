@@ -6,7 +6,6 @@ mod ir;
 mod mem2reg;
 mod parser;
 mod symtab;
-mod value;
 
 use ast::Stmt;
 use codegen::target::riscv::RISCV32;
@@ -41,5 +40,9 @@ fn main() {
   let riscv = RISCV32::new();
   println!("\n^before------v-after---------");
   module.borrow().print();
+  println!("");
+  module.borrow_mut().func_list().for_each(|func| {
+    crate::analysis::get_analysis::<crate::analysis::liveout::LiveOutInfo>(func);
+  });
   code_gen(&module, riscv);
 }

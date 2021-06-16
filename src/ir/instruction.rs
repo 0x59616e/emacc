@@ -1,6 +1,6 @@
 use super::basicblock::*;
 use crate::parser::BinOpType;
-use crate::value::Value;
+use crate::ir::value::Value;
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;

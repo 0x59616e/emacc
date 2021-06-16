@@ -5,10 +5,10 @@ use crate::ir::instruction::*;
 use crate::ir::module::*;
 use crate::parser::BinOpType;
 use crate::symtab::{SymTabEntry, Type};
-use crate::value::{Value, DataTy};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::mem;
+use super::value::{Value, DataTy};
 
 pub struct IRBuilder {
   next_vreg: usize,

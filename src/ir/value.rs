@@ -97,6 +97,12 @@ impl Value {
     }
   }
 
+  pub fn is_vreg(&self) -> bool {
+    match self.ty {
+      ValueTy::VReg{..} => true,
+      _ => false,
+    }
+  }
   pub fn is_const(&self) -> bool {
     match self.ty {
       ValueTy::Const_I1(..) | ValueTy::Const_I32(..) => true,

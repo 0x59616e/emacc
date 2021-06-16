@@ -2,10 +2,10 @@ use crate::ir::basicblock::*;
 use crate::ir::instruction::Instruction;
 use crate::ir::module::Module;
 use crate::symtab::SymTabEntry;
-use crate::value::{DataTy, Value};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use super::value::{DataTy, Value};
 
 pub struct Function {
   name: String,

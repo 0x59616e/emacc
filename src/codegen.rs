@@ -1,10 +1,12 @@
 pub mod target;
 mod liveinterval;
+mod liverange;
+mod slotindex;
 
 use crate::ir::function::Function;
 use crate::ir::instruction::{Instruction, BinaryTy};
 use crate::ir::module::Module;
-use crate::value::Value;
+use crate::ir::value::Value;
 use std::cell::RefCell;
 use std::rc::Rc;
 use target::Target;
@@ -27,7 +29,7 @@ pub fn code_gen<T: Target>(module: &Rc<RefCell<Module>>, target: T) {
   
 }
 
-pub fn eliminate_phi(func: &Rc<RefCell<Function>>) {
+pub fn _eliminate_phi(func: &Rc<RefCell<Function>>) {
   for bb in func.borrow().bb_list() {
     for inst in bb.borrow().inst_list() {
 

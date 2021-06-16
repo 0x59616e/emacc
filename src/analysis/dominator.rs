@@ -1,6 +1,6 @@
 use crate::ir::basicblock::BasicBlock;
 use crate::ir::function::Function;
-use crate::value::Value;
+use crate::ir::value::Value;
 use std::cell::RefCell;
 use std::collections::hash_set::HashSet;
 use std::collections::HashMap;

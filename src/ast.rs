@@ -1,7 +1,7 @@
 use crate::ir::irbuilder::IRBuilder;
 use crate::symtab::*;
 use crate::parser::*;
-use crate::value::Value;
+use crate::ir::value::Value;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
