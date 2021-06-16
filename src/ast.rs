@@ -85,7 +85,7 @@ impl Stmt for FunctionDef {
 
     irbuilder.enter_new_basicblock_scope();
 
-    // Generate alloca instruction for all local variable all
+    // Generate alloca instruction for all local variable
     for var in self.local_var_list() {
       let inst = irbuilder.new_alloca_inst(var.borrow().get_type());
       {
@@ -95,7 +95,8 @@ impl Stmt for FunctionDef {
     }
 
     // Generate store instruction for function parameter
-    for (i, param) in self.param_list().enumerate() {
+    for param in self.param_list() {
+      let i = param.borrow().get_param_order();
       let inst = irbuilder.new_store_inst(param_reg[i], param.borrow().get_address().unwrap());
       irbuilder.insert_inst(inst);
     }

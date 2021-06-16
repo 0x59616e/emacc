@@ -34,6 +34,10 @@ impl SymTabEntry {
     return self.entry_type;
   }
 
+  pub fn get_param_order(&self) -> usize {
+    self.is_parm.expect("Not a parameter")
+  }
+
   pub fn get_prototype(&self) -> &Vec<Type> {
     self.prototype.as_ref().expect("No prototype")
   }
