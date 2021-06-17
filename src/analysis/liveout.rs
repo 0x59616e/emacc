@@ -37,7 +37,6 @@ impl Analysis for LiveOutInfo {
       }
     }
 
-    self.livein.clear();
     self.varkill.clear();
 
     println!("--------------LiveOut------------");
