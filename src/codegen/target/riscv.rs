@@ -28,8 +28,9 @@ impl Target for RISCV32 {
             InstrTy::Alloca => panic!("Will be supported in the future"),
             InstrTy::Load   => panic!("Will be supported in the future"),
             InstrTy::Store  => panic!("Will be supported in the future"),
-             // do nothing
+            // do nothing
             InstrTy::Phi    => new_inst_list.push(Rc::clone(inst)),
+            InstrTy::Copy   => panic!("There should've not been copy at this stage"),
             InstrTy::Binary(binty) => {
               match binty {
                 BinaryTy::Add => {
