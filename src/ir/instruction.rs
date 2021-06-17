@@ -61,6 +61,8 @@ impl Instruction {
   }
 
   pub fn is_terminator(&self) -> bool {
+    // FIXME: When lower to asm, we can't correctly recognize
+    //        branch instruction.
     self.is_branch_inst() || self.is_return_inst()
   }
 
