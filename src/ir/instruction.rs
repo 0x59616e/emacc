@@ -61,8 +61,6 @@ impl Instruction {
   }
 
   pub fn is_terminator(&self) -> bool {
-    // FIXME: When lower to asm, we can't correctly recognize
-    //        branch instruction.
     self.is_branch_inst() || self.is_return_inst()
   }
 
@@ -83,7 +81,9 @@ impl Instruction {
   }
 
   pub fn is_branch_inst(&self) -> bool {
-    return self.ty == InstrTy::Branch;
+    // FIXME: Not sure whether this is a good way to
+    //        to recognize branch instruction
+    !self.is_phi_inst() && self.bb.len() > 0
   }
 
   pub fn is_condi_br(&self) -> bool {
