@@ -142,10 +142,6 @@ impl Instruction {
     self.op.iter().zip(self.bb.iter()).collect()
   }
 
-  pub fn src_operand_list_mut(&mut self) -> impl Iterator<Item = &mut Value> {
-    self.op.iter_mut()
-  }
-
   pub fn src_operand_list(&self) -> Vec<Value> {
     self.op.iter().cloned().collect()
   }
