@@ -76,6 +76,8 @@ impl Target for RISCV32 {
                     let op = Instruction::new_binary_inst(tmp_dest, src2, dest, *binty, Rc::clone(bb));
                     new_inst_list.push(Rc::new(RefCell::new(addi)));
                     new_inst_list.push(Rc::new(RefCell::new(op)));
+                  } else {
+                    new_inst_list.push(Rc::clone(inst));
                   }
                 },
                 BinaryTy::Xor => {
