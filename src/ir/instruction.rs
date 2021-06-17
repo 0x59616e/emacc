@@ -11,6 +11,7 @@ pub enum InstrTy {
   Alloca,
   Store,
   Load,
+  Copy,
   Return,
   Branch,
   Cmp(CmpTy),
@@ -25,6 +26,7 @@ impl fmt::Display for InstrTy {
       Self::Alloca     => write!(f, "alloca"),
       Self::Store      => write!(f, "store"),
       Self::Load       => write!(f, "load"),
+      Self::Copy       => write!(f, "copy"),
       Self::Return     => write!(f, "return"),
       Self::Branch     => write!(f, "br"),
       Self::Cmp(ty)    => write!(f, "cmp {}", ty),
@@ -187,6 +189,23 @@ impl Instruction {
 
   pub fn get_parent(&self) -> Rc<RefCell<BasicBlock>> {
     Rc::clone(&self.parent)
+  }
+
+  pub fn new_copy_inst(
+    dest: Value,
+    src: Value,
+    parent: Rc<RefCell<BasicBlock>>
+  ) -> Instruction
+  {
+    Instruction {
+      parent,
+      ty: InstrTy::Copy,
+      mi_ty: 0,
+      uselist: vec![],
+      dest: Some(dest),
+      op: vec![src],
+      bb: vec![],
+    }
   }
 
   pub fn new_phi_inst(
