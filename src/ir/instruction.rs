@@ -64,6 +64,16 @@ impl Instruction {
     self.is_branch_inst() || self.is_return_inst()
   }
 
+  pub fn is_copy_inst(&self) -> bool {
+    self.ty == InstrTy::Copy
+  }
+  pub fn is_call_inst(&self) -> bool {
+    match self.ty {
+      InstrTy::Call(_) => true,
+      _ => false,
+    }
+  }
+
   pub fn is_alloca_inst(&self) -> bool {
     return self.ty == InstrTy::Alloca;
   }
@@ -88,6 +98,10 @@ impl Instruction {
 
   pub fn is_condi_br(&self) -> bool {
     self.is_branch_inst() && self.bb.len() == 2
+  }
+
+  pub fn is_uncondi_br(&self) -> bool {
+    self.is_branch_inst() && self.bb.len() == 1
   }
 
   pub fn is_return_inst(&self) -> bool {
@@ -154,7 +168,7 @@ impl Instruction {
     self.uselist.push(Rc::clone(inst));
   }
 
-  fn replace_op(&mut self, old_op: Value, new_op: Value) {
+  pub fn replace_op(&mut self, old_op: Value, new_op: Value) {
     *self.op.iter_mut().find(|op| **op == old_op).expect("No op") = new_op;
   }
 

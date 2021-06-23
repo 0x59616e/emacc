@@ -1,8 +1,8 @@
+use crate::codegen::target::RegisterSaver;
 use crate::symtab::Type;
 use std::fmt;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[derive()]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DataTy {
   I1,
   I32,
@@ -26,7 +26,7 @@ impl fmt::Display for DataTy {
   }
 }
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, PartialOrd, Ord, Eq)]
 pub enum ValueTy {
   Label {
     label_num: usize,
@@ -34,17 +34,17 @@ pub enum ValueTy {
   VReg {
     reg_num: usize,
     ty: DataTy,
-    is_ptr: bool,
+    is_stack_slot: bool,
     is_tmp: bool,
   },
   Const_I32(i32, DataTy),
   Const_I1(bool, DataTy),
-  PhyReg(u8),
-  StackMemAddr(u32/*offset from stack pointer*/),
+  PhyReg(u8, Option<RegisterSaver>),
+  StackMemAddr(u16),
   Undef,
 }
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Value {
   ty: ValueTy,
 }
@@ -52,17 +52,17 @@ pub struct Value {
 impl fmt::Display for Value {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self.ty {
-      ValueTy::VReg{reg_num, ty, is_ptr, is_tmp} => {
+      ValueTy::VReg{reg_num, ty, is_stack_slot, is_tmp} => {
         write!(f, "%")?;
         if is_tmp {write!(f, ".")?;}
         write!(f, "{} {}", reg_num, ty)?;
-        if is_ptr {write!(f, "*")} else {write!(f, "")}
+        if is_stack_slot {write!(f, "*")} else {write!(f, "")}
       },
-      ValueTy::Const_I32(value, ty) => write!(f, "{} {}", value, ty),
-      ValueTy::Const_I1(value, ty)  => write!(f, "{} {}", value, ty),
-      ValueTy::Label{label_num} => write!(f, "label %{}", label_num),
-      ValueTy::Undef => write!(f, "undef"),
-      ValueTy::PhyReg(i) => write!(f, "#{}", i),
+      ValueTy::Const_I32(value, ty)         => write!(f, "{} {}", value, ty),
+      ValueTy::Const_I1(value, ty)          => write!(f, "{} {}", value, ty),
+      ValueTy::Label{label_num}             => write!(f, "label %{}", label_num),
+      ValueTy::Undef                        => write!(f, "undef"),
+      ValueTy::PhyReg(i, _)                 => write!(f, "x{}", i),
       _ => panic!("uh ??"),
     }
   }
@@ -97,12 +97,62 @@ impl Value {
     }
   }
 
-  pub fn is_vreg(&self) -> bool {
+  pub fn is_callee_saved(&self) -> bool {
+    assert!(self.is_phy_reg());
+    self.check_register_saver(RegisterSaver::Callee)
+  }
+
+  pub fn is_caller_saved(&self) -> bool {
+    assert!(self.is_phy_reg());
+    self.check_register_saver(RegisterSaver::Caller)
+  }
+
+  fn check_register_saver(&self, ty: RegisterSaver) -> bool {
     match self.ty {
-      ValueTy::VReg{..} => true,
+      ValueTy::PhyReg(_, Some(saver)) => saver == ty,
       _ => false,
     }
   }
+
+  pub fn is_reg(&self) -> bool {
+    self.is_phy_reg() || self.is_vreg()
+  }
+
+  pub fn get_phyreg_num(&self) -> u8 {
+    match self.ty {
+      ValueTy::PhyReg(num, _) => num,
+      _ => panic!("Not a physical register"),
+    }
+  }
+
+  pub fn is_phy_reg(&self) -> bool {
+    match self.ty {
+      ValueTy::PhyReg(..) => true,
+      _ => false,
+    }
+  }
+
+  pub fn is_label(&self) -> bool {
+    match self.ty {
+      ValueTy::Label{..} => true,
+      _ => false,
+    }
+  }
+
+  pub fn is_vreg(&self) -> bool {
+    match self.ty {
+      ValueTy::VReg{is_stack_slot, ..} => !is_stack_slot,
+      _ => false,
+    }
+  }
+  // FIXME: We need a better way to manage constant value
+  pub fn get_const_i32(&self) -> i32 {
+    match self.ty {
+      ValueTy::Const_I32(val, _) => val,
+      _ => panic!("Not a i32 const")
+    }
+  }
+
   pub fn is_const(&self) -> bool {
     match self.ty {
       ValueTy::Const_I1(..) | ValueTy::Const_I32(..) => true,
@@ -110,7 +160,7 @@ impl Value {
     }
   }
   // FIXME: Is there any better way to do this ?
-  pub fn _new_const(ty: DataTy, value: i64) -> Value{
+  pub fn _new_const(ty: DataTy, value: i64) -> Value {
     match ty {
       DataTy::I32 => Value::new_const_i32(value as i32),
       DataTy::I1  => Value::new_const_i1(value != 0),
@@ -135,9 +185,9 @@ impl Value {
     }
   }
 
-  pub fn new_phyreg(reg_num: u8) -> Value {
+  pub fn new_phyreg(reg_num: u8, saver: Option<RegisterSaver>) -> Value {
     Value {
-      ty: ValueTy::PhyReg(reg_num)
+      ty: ValueTy::PhyReg(reg_num, saver)
     }
   }
 
@@ -152,12 +202,12 @@ impl Value {
     }
   }
 
-  pub fn new_vreg(reg_num: usize, ty: DataTy, is_ptr: bool) -> Value {
+  pub fn new_vreg(reg_num: usize, ty: DataTy, is_stack_slot: bool) -> Value {
     Value {
       ty: ValueTy::VReg {
         reg_num,
         ty, // currently only `int` supported
-        is_ptr,
+        is_stack_slot,
         is_tmp: false,
       }
     }

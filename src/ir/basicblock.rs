@@ -98,7 +98,17 @@ impl BasicBlock {
   }
 
   pub fn insert_at_head(&mut self, inst: Instruction) {
-    self.inst_list.insert(0, Rc::new(RefCell::new(inst)));
+    let pos = if inst.is_alloca_inst() {
+      0
+    } else {
+      self.inst_list.iter()
+                    .position(|inst| {
+                      !inst.borrow().is_alloca_inst() &&
+                      !inst.borrow().is_store_inst()
+                    }).unwrap()
+    };
+
+    self.inst_list.insert(pos, Rc::new(RefCell::new(inst)));
   }
 
   pub fn insert_before_terminator(&mut self, inst: Rc<RefCell<Instruction>>) {

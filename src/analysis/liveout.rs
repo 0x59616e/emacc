@@ -37,8 +37,6 @@ impl Analysis for LiveOutInfo {
       }
     }
 
-    self.varkill.clear();
-
     println!("--------------LiveOut------------");
     for (bb, liveoutset) in self.liveout.iter() {
       print!("{}:", bb);
@@ -55,12 +53,7 @@ impl LiveOutInfo {
   fn compute_liveout(&mut self, bb: &Rc<RefCell<BasicBlock>>) -> bool {
     let mut result = HashSet::new();
     for succ in bb.borrow().succs_list() {
-      let varkill = self.get_varkill(succ);
-      let tmp = self.get_liveout(succ).iter()
-                                      .filter(|&op| !varkill.contains(op))
-                                      .cloned()
-                                      .collect::<HashSet<_>>();
-
+      let tmp = self.get_livethrough(succ);
       let tmp = self.get_livein(succ, Some(bb)).union(&tmp).cloned().collect::<HashSet<_>>();
 
       result = result.union(&tmp).cloned().collect();
@@ -93,6 +86,18 @@ impl LiveOutInfo {
     self.liveout.get(&bb.borrow().get_label()).unwrap()
   }
 
+  pub fn get_livein_and_livethrough(&self, bb: &Rc<RefCell<BasicBlock>>) -> HashSet<Value> {
+    self.get_livein(bb, None).union(&self.get_livethrough(bb)).cloned().collect()
+  }
+
+  pub fn get_livethrough(&self, bb: &Rc<RefCell<BasicBlock>>) -> HashSet<Value> {
+    let varkill = self.get_varkill(bb);
+    self.get_liveout(bb).iter()
+        .filter(|&op| !varkill.contains(op))
+        .cloned()
+        .collect::<HashSet<_>>()
+  }
+
   pub fn get_livein(
     &self,
     succ: &Rc<RefCell<BasicBlock>>,
@@ -105,8 +110,7 @@ impl LiveOutInfo {
         break;
       }
 
-      // Phi is a special case.
-      // The source operands in phi only live out the block where it comes from.
+      // use in phi only lives out of the bb where it comes from
       if let Some(bb) = bb {
         for (&op, pred) in inst.borrow().get_pairs_list_in_phi() {
           if op.is_vreg() && pred.borrow().get_label() == bb.borrow().get_label() {
@@ -122,18 +126,12 @@ impl LiveOutInfo {
   fn calc_livein_and_varkill(&mut self) {
     let func = Rc::clone(&self.func);
 
-    // function parameters live at the start of the root implicitly.
-    let root = func.borrow().get_root();
-    for param in func.borrow().param_list() {
-      self.add_to_livein_set(&root, param);
-    }
-
     for bb in func.borrow().bb_list() {
       for inst in bb.borrow().inst_list() {
 
         if !inst.borrow().is_phi_inst() {
           for op in inst.borrow().src_operand_list() {
-            if op.is_vreg() && !self.is_killed(bb, op) {
+            if op.is_reg() && !self.is_killed(bb, op) {
               self.add_to_livein_set(bb, op);
             }
           }
@@ -147,14 +145,23 @@ impl LiveOutInfo {
   }
 
   fn add_to_livein_set(&mut self, bb: &Rc<RefCell<BasicBlock>>, op: Value) {
+    if !op.is_reg() {
+      return;
+    }
     self.livein.get_mut(&bb.borrow().get_label()).unwrap().insert(op);
   }
 
   fn is_killed(&self, bb: &Rc<RefCell<BasicBlock>>, op: Value) -> bool {
+    if !op.is_reg() {
+      panic!("Not a register");
+    }
     self.varkill.get(&bb.borrow().get_label()).unwrap().contains(&op)
   }
 
   fn kill(&mut self, bb: &Rc<RefCell<BasicBlock>>, op: Value) {
+    if !op.is_reg() {
+      return;
+    }
     self.varkill.get_mut(&bb.borrow().get_label()).unwrap().insert(op);
   }
 }

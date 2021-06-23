@@ -30,6 +30,10 @@ impl Function {
     }
   }
 
+  pub fn get_name(&self) -> &str {
+    self.name.as_str()
+  }
+
   pub fn param_list(&self) -> Vec<Value> {
     self.param_ty.iter()
                   .enumerate()

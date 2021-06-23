@@ -11,7 +11,7 @@ pub trait Analysis {
   fn new(_: &Rc<RefCell<Function>>) -> Self;
 }
 
-pub fn get_analysis<T: Analysis>(func: &Rc<RefCell<Function>>) -> T {
+pub fn run_analysis<T: Analysis>(func: &Rc<RefCell<Function>>) -> T {
   let mut t = T::new(func);
   t.run();
   t
