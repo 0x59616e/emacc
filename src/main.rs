@@ -26,7 +26,7 @@ fn main() {
   let mut parser = parser::Parser::new(toklist);
   let translation_unit = parser.run();
 
-  // translation_unit.print_ast("".to_string());
+  translation_unit.print_ast("".to_string());
 
   let ir_builder = ir::irbuilder::IRBuilder::new();
 
