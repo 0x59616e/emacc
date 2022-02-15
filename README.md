@@ -1,8 +1,6 @@
 # Introduction
 emacc is a RISC-V C compiler writtten in Rust.
 
-It is not in maintenance anymore.
-
 # Supported Language Feature
 - i32 integer
 - binary operator: +, -, *, /, =, ==, !=, >, >=, <, <=
